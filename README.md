@@ -23,12 +23,13 @@ Each notebook has its monitoring profile (`monitoring.yaml`), the Prometheus que
 
 ## Installation
 
-Python 3.12 or later (not a conda Python on macOS), in a virtual environment used as the notebook kernel:
+Python 3.12 or later (not a conda Python on macOS), in a virtual environment at the root of this repository, which
+is also the notebook kernel (select `.venv` in VS Code or Jupyter):
 
 ```bash
-python3 -m venv ~/slices-venv-new
-~/slices-venv-new/bin/python -m pip install ipykernel python-dotenv
-~/slices-venv-new/bin/python -m ipykernel install --user --name slices --display-name "Python (slices)"
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e ".[dev,notebooks]"
 ```
 
 The first cell of each notebook installs this repository (with `nador==1.1.0`) and then IFRAN: the `fhi72` branch

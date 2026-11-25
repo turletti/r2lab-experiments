@@ -11,6 +11,8 @@ dependencies = ["nador==1.1.0"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+# Jupyter kernel of the notebooks, in the same environment
+notebooks = ["ipykernel"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
