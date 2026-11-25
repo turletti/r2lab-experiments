@@ -9,8 +9,8 @@ OAI, and triggers handovers itself.
 - ``OCUDU_CHARTS``: the OCUDU gNB and DU charts of IFRAN with the O-RAN 7.2 fronthaul (SR-IOV VF, 1G hugepages, VF
   and CPU placeholders replaced at start), and the OCUDU templates that apply both the CSI logger SRS and the O-RAN 7.2
   edits (no ru_sdr section with ru_ofh, DPDK hal section, SSB power).
-- ``name_oai_fhi72_csi_images``: NADOR 1.1.0 knows no CSI image for the O-RAN 7.2 OAI image.
-- ``use_ocudu_fhi72_files``: NADOR 1.1.0 renders OCUDU components that log CSI with its own templates, which do not
+- ``name_oai_fhi72_csi_images``: NADOR 1.1.1 knows no CSI image for the O-RAN 7.2 OAI image.
+- ``use_ocudu_fhi72_files``: NADOR 1.1.1 renders OCUDU components that log CSI with its own templates, which do not
   apply the O-RAN 7.2 edits.
 - ``r2lab_experiments.handover.run_handover``: triggers an F1 handover and reports it with NADOR's HandoverWatch.
 """
@@ -56,7 +56,7 @@ def name_oai_fhi72_csi_images(ran, config) -> list[str]:
     """
     Give the OAI O-RAN 7.2 radios that log CSI their CSI logger image, before ``configure_ran_monitoring``.
 
-    NADOR 1.1.0 refuses a CSI component whose image it does not know (``oai-gnb-fhi72``); it keeps an image whose
+    NADOR 1.1.1 refuses a CSI component whose image it does not know (``oai-gnb-fhi72``); it keeps an image whose
     repository ends with ``-csi``. Returns the names of the components changed.
     """
     changed = []
@@ -76,7 +76,7 @@ def use_ocudu_fhi72_files(ran) -> list[str]:
     Render the OCUDU gNBs and DUs on O-RAN 7.2 charts with this repository's templates, after
     ``configure_ran_monitoring``.
 
-    NADOR 1.1.0 sets its own OCUDU templates on the components that log CSI, and refuses others before; these templates
+    NADOR 1.1.1 sets its own OCUDU templates on the components that log CSI, and refuses others before; these templates
     apply the same CSI logger SRS and the O-RAN 7.2 edits. Only the components on ``OCUDU_CHARTS`` change. Returns
     their names.
     """

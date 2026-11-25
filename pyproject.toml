@@ -7,7 +7,7 @@ name = "r2lab-experiments"
 version = "0.1.0"
 description = "R2Lab experiments with NADOR and IFRAN: O-RAN 7.2 charts and handover trigger, until IFRAN has them"
 requires-python = ">=3.12"
-dependencies = ["nador==1.1.0"]
+dependencies = ["nador==1.1.1"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]

@@ -2,7 +2,7 @@
 Trigger an F1 handover on the testbed and check it: the R2Lab layer on top of :class:`nador.handover.HandoverWatch`.
 
 Temporary: triggering a handover acts on the RAN, so it belongs to IFRAN (its RAN manager); this module goes away
-once IFRAN does it. It uses attributes of ``HandoverWatch`` of NADOR 1.1.0 (``ran``, ``cucp``, ``charts``,
+once IFRAN does it. It uses attributes of ``HandoverWatch`` of NADOR 1.1.1 (``ran``, ``cucp``, ``charts``,
 ``namespace``, ``master``, ``nodes``, ``_before``, ``_kubectl``).
 
 ``HandoverWatch`` only observes a handover; ``run_handover`` also sends the command to the CU-CP, waits, gets the

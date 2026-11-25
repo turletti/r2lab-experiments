@@ -4,7 +4,7 @@ Notebooks that deploy a 5G network on [R2Lab](https://r2lab.inria.fr) and the So
 [IFRAN](https://github.com/ifran-project/ifran), monitor it with [NADOR](https://github.com/ifran-project/nador)
 (metrics, logs, CSI) and run experiments on it: iperf traffic, F1 handovers between two DUs.
 
-NADOR is used as published (`nador==1.1.0`), without changes. What the notebooks need and neither tool provides yet
+NADOR is used as published (`nador==1.1.1`), without changes. What the notebooks need and neither tool provides yet
 is in the `r2lab_experiments` package of this repository, and goes away once IFRAN has it.
 
 ## Notebooks
@@ -32,7 +32,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev,notebooks]"
 ```
 
-The first cell of each notebook installs this repository (with `nador==1.1.0`) and then IFRAN: the `fhi72` branch
+The first cell of each notebook installs this repository (with `nador==1.1.1`) and then IFRAN: the `fhi72` branch
 for the Benetel notebooks (O-RAN 7.2 node setup and RU configuration, not yet in an IFRAN release), `main` for the
 AW2S ones. Restart the kernel after it.
 
@@ -53,7 +53,7 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
 - `OCUDU_CHARTS`: the OCUDU gNB and DU charts with the O-RAN 7.2 fronthaul (SR-IOV VF, 1G hugepages, VF and CPU
   placeholders replaced at start), and their templates: CSI logger SRS, and with `ru_ofh` no `ru_sdr` section, a
   DPDK `hal` section and the SSB power (-28 dBm).
-- Two adjustments around `configure_ran_monitoring` of NADOR 1.1.0, which knows no CSI image for the O-RAN 7.2 OAI
+- Two adjustments around `configure_ran_monitoring` of NADOR 1.1.1, which knows no CSI image for the O-RAN 7.2 OAI
   image (`name_oai_fhi72_csi_images`, before it) and renders the OCUDU radios that log CSI with its own templates
   (`use_ocudu_fhi72_files`, after it).
 - `r2lab_experiments.handover.run_handover`: sends the handover command to the CU-CP (OAI: `ci trigger_f1_ho` on its
