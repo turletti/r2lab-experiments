@@ -1,0 +1,13 @@
+[global]
+domainNumber            {{ ptp.domain_number }}
+slaveOnly               {{ ptp.slave_only }}
+time_stamping           {{ ptp.time_stamping }}
+tx_timestamp_timeout    {{ ptp.tx_timestamp_timeout }}
+logging_level           {{ ptp.logging_level }}
+summary_interval        {{ ptp.summary_interval }}
+logAnnounceInterval     {{ ptp.log_announce_interval }}
+logSyncInterval         {{ ptp.log_sync_interval }}
+verbose                 {{ ptp.verbose }}
+
+[{{ ptp.interface }}]
+network_transport       {{ ptp.network_transport }}

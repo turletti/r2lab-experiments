@@ -60,6 +60,10 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
   telnet server, port 9091, whole answer read before closing; OCUDU: `trigger_handover` on its remote control
   server), then reports it with NADOR's `HandoverWatch` and pings from the UE.
 
+- `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`), and the `ptp` playbook and role
+  (linuxptp built from source, `ptp4l` slave and `phc2sys` on the RAN nodes listed in `miscellaneous.ptp`), run with
+  `MiscellaneousManagement.run_playbook` until IFRAN supports PTP (ifran-project/ifran#9).
+
 ## Results
 
 Each experiment writes its artifacts under `notebooks/<name>/results/`, which is not committed.

@@ -1,0 +1,9 @@
+---
+# PTP on the RAN nodes listed in the 'ptp' entry of the deployment model 'miscellaneous' field, run with
+# MiscellaneousManagement.run_playbook (roles_paths: ansible/roles of this repository)
+- name: Set up PTP on the RAN nodes
+  hosts: ran_nodes
+  gather_facts: false
+  become: true
+  roles:
+    - role: ptp

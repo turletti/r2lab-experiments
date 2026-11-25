@@ -1,0 +1,12 @@
+[Unit]
+Description=Synchronize the system clock to the PHC of {{ ptp.interface }}
+After=ptp4l.service
+Requires=ptp4l.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/phc2sys -s {{ ptp.interface }} -c CLOCK_REALTIME -r -n {{ ptp.domain_number }} -w -m -l {{ ptp.phc2sys_logging_level }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
