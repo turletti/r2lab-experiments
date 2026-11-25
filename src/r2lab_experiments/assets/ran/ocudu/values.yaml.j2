@@ -1,0 +1,21 @@
+{# OCUDU components: the upstream values, unchanged (the CSI logger environment comes from extra_env_vars), with #}
+{# the O-RAN 7.2 fronthaul resources of a gNB or DU on a Benetel RU, read by the nador ocudu-gnb and ocudu-du charts. #}
+{# The OCUDU metrics are collected by the ocudu-metrics chart (metrics.ran.ran_kpis), not by a sidecar. #}
+{% include 'ran/ocudu/ocudu-' ~ component.type ~ '/values.yaml.j2' %}
+
+# O-RAN 7.2 fronthaul (radio fhi72): SR-IOV VFs of the node, in IFRAN order (U-plane VF, then C-plane VF), and 1G
+# hugepages of the Guaranteed pod
+{% if component.derived_radio_config is mapping and component.derived_radio_config.fhi72 is defined %}
+fhi72:
+  sriovResources:
+{% for resource in component.derived_radio_config.fhi72.sriov_resources %}
+    - {{ resource }}
+{% endfor %}
+  pciDeviceEnvVars:
+{% for env_var in component.derived_radio_config.fhi72.pci_device_env_vars %}
+    - {{ env_var }}
+{% endfor %}
+  hugepages1Gi: {{ component.resources.limits.nf.hugepages_1gi }}
+{% else %}
+fhi72: null
+{% endif %}

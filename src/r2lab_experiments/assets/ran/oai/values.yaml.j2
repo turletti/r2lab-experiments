@@ -1,0 +1,18 @@
+{# Keep upstream values, adding only the statistics-parser configuration. #}
+{% include 'ran/oai/oai-' ~ component.type ~ '/values.yaml.j2' %}
+
+metricsParser:
+  enabled: true
+  # Published 2026.w46 image (branch 2026.w46, commit 5ff137d): parses the w46 UE header
+  # "UE RNTI x PCI n CellID n CU-UE-ID n" and the older one without PCI/CellID (R2Lab OAI images are w46 and later).
+  # Pinned by digest because the chart uses IfNotPresent and branch tags are overwritten.
+  image: ghcr.io/ziyad-mabrouk/oai-gnb-metrics-parser@sha256:ba41409cf041c4df6f631b198f0f408766a32e48d2fa41cc1e3ebdd1b2751562
+{# CSI logger (oai-csi-logging images): CSI_LOGGING_ENABLED and CSI_OUTPUT_DIR are set by configure_csi. #}
+{% set csi_env = component.extra_env_vars or {} %}
+{% if csi_env.get('CSI_LOGGING_ENABLED') | string == '1' %}
+
+csi:
+  enabled: true
+  # The logger writes <outputDir>/csi_per_rb.csv; outputDir is a hostPath on the gNB node.
+  outputDir: {{ csi_env.get('CSI_OUTPUT_DIR', '/data/csi') }}
+{% endif %}

@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+results/
+.k8s-*.conf
+*_metamodel.yaml
+*_deployment_model.yaml

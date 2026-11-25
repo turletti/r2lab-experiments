@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "r2lab-experiments"
+version = "0.1.0"
+description = "R2Lab experiments with NADOR and IFRAN: O-RAN 7.2 charts and handover trigger, until IFRAN has them"
+requires-python = ">=3.12"
+dependencies = ["nador==1.1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+r2lab_experiments = ["assets/**/*"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["notebooks"]

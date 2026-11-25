@@ -1,0 +1,72 @@
+# Run the monitoring stack on sopnode-f3 alongside the core and RIC.
+# eth0 carries core/N3 traffic in this example; retain RU-only Multus interfaces.
+# Override a target interface here if you attach N2/N3/N4 to a different pod interface.
+namespace: monitoring
+node_name: sopnode-f3
+metrics:
+  ran:
+    ran_kpis: false
+    csi:
+      components: [du01, du02]
+      srs_period_ms: 40
+      granularity: rb
+      subcarrier_sampling: 1
+      antennas: all
+      ports: all
+      output_dir: null  # /data/csi
+    split_signaling: false
+    logs: true
+  core:
+    ngap: false
+    pfcp: false
+    throughput: {on_demand: false}
+    upf_transit: false
+    ue_mapper_coverage: false
+    logs: true
+  e2e:
+    rtt: {on_demand: false, at: [gnb, upf], packet_pairing: true, imsis: [], slices: []}
+    n3_one_way: false
+    user_plane_paths: false
+  host:
+    node_metrics: false
+    logs: true
+    scheduler_wait: false
+    kernel_drops: false
+    attributed_drops: false
+    network_queues: false
+    socket_counters: false
+    tcp_flows: false
+    measurement_quality: false
+targets:
+- category: core
+  component: amf
+  role: amf
+  container: amf
+  interface: eth0
+  metrics_port: 9090
+- category: core
+  component: smf
+  role: smf
+  container: smf
+  interface: eth0
+  metrics_port: 9090
+- category: core
+  component: upf
+  role: upf
+  container: upf
+  interface: eth0
+  metrics_port: 9090
+- category: ran
+  component: cuup
+  role: gnb
+  container: cuup
+  interface: eth0
+- category: ran
+  component: cucp
+  metrics_port: 9090
+- category: ran
+  component: du01
+  metrics_port: 9090
+- category: ran
+  component: du02
+  metrics_port: 9090
