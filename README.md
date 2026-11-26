@@ -12,7 +12,7 @@ is in the `r2lab_experiments` package of this repository, and goes away once IFR
 | Notebook | RAN | Radio units | Handover |
 |---|---|---|---|
 | `notebooks/oai-aw2s` | OAI gNB | AW2S Jaguar | – |
-| `notebooks/oai-aw2s-2du` | OAI CU-CP, CU-UP, 2 DUs | AW2S Jaguar, Panther | F1, du01 ↔ du02 |
+| `notebooks/oai-aw2s-2du` | OAI CU-CP, CU-UP, 2 DUs | AW2S Jaguar, Panther | F1, du01 ↔ du02: fails, the AW2S RUs cannot be synchronized |
 | `notebooks/oai-benetel` | OAI gNB, O-RAN 7.2 | Benetel RAN550 (benetel1) | – |
 | `notebooks/oai-benetel-2du` | OAI CU-CP, CU-UP, 2 DUs, O-RAN 7.2 | benetel1, benetel2 | F1, du01 ↔ du02 |
 | `notebooks/ocudu-benetel` | OCUDU gNB, O-RAN 7.2 | benetel1 | – |
