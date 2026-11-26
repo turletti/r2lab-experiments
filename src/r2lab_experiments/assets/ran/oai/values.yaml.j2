@@ -38,10 +38,10 @@ fhi72:
 
 metricsParser:
   enabled: true
-  # Published 2026.w46 image (branch 2026.w46, commit 5ff137d): parses the w46 UE header
+  # 2026.w46 image of nador-images (ifran-project/nador-images#12): parses the w46 UE header
   # "UE RNTI x PCI n CellID n CU-UE-ID n" and the older one without PCI/CellID (R2Lab OAI images are w46 and later).
-  # Pinned by digest because the chart uses IfNotPresent and branch tags are overwritten.
-  image: ghcr.io/ziyad-mabrouk/oai-gnb-metrics-parser@sha256:ba41409cf041c4df6f631b198f0f408766a32e48d2fa41cc1e3ebdd1b2751562
+  # Pinned by digest because the chart uses IfNotPresent and tags are overwritten.
+  image: ghcr.io/ifran-project/oai-gnb-metrics-parser@sha256:e79fb17a2090b2fd796a1c562b6a7129194e573a19803a9e44d365f44dd98628
 {# CSI logger (oai-csi-logging images): CSI_LOGGING_ENABLED and CSI_OUTPUT_DIR are set by configure_csi. #}
 {% set csi_env = component.extra_env_vars or {} %}
 {% if csi_env.get('CSI_LOGGING_ENABLED') | string == '1' %}
