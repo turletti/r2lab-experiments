@@ -1,0 +1,8 @@
+# Benetel RU configuration, from the RAN node of each RU (miscellaneous.ru_targets)
+---
+- name: Configure the Benetel RUs from their RAN node
+  hosts: du_nodes
+  gather_facts: false
+  become: true
+  roles:
+    - role: benetel/configure

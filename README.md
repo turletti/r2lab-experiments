@@ -60,9 +60,13 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
   telnet server, port 9091, whole answer read before closing; OCUDU: `trigger_handover` on its remote control
   server), then reports it with NADOR's `HandoverWatch` and pings from the UE.
 
-- `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`), and the `ptp` playbook and role
-  (linuxptp built from source, `ptp4l` slave and `phc2sys` on the RAN nodes listed in `miscellaneous.ptp`), run with
-  `MiscellaneousManagement.run_playbook` until IFRAN supports PTP (ifran-project/ifran#9).
+- `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`) and their playbooks, run with
+  `MiscellaneousManagement.run_playbook` and the `miscellaneous` entries of `r2lab_experiments.fhi72`:
+  - `fhi72`: O-RAN 7.2 setup of the `du_nodes` (NIC, VFs, IRQs, CPUs, sysctl, SR-IOV device plugin, PTP), roles of
+    Ziyad Mabrouk's benetel_example (963744a), with the linuxptp build always run;
+  - `benetel`: Benetel RU configuration from the RAN node of each RU (tasks of IFRAN's former `ru/benetel/configure`
+    role: the RUs have no Python);
+  - `ptp`: PTP alone, for the notebooks still on IFRAN's fhi72 branch.
 
 ## Results
 
