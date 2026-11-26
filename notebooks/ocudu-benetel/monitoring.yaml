@@ -1,7 +1,6 @@
-# Monitoring runs on sopnode-f1 with the core: the CPUs of the RAN node sopnode-f3 are isolated for the gNB.
+# Monitoring runs on the VM node11: the CPUs of the RAN node sopnode-f3 are isolated for the gNB.
 namespace: monitoring
-kubeconfig: /root/.kube/config
-node_name: sopnode-f1
+node_name: node11
 metrics:
   ran:
     ran_kpis: {ocudu_port: 8001}
