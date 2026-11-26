@@ -1,132 +1,31 @@
-# Benetel RU configure role
-
-# Loads the configuration of the Benetel RU of a RAN node (/etc/ru_config.cfg) from that node, which reaches the RU
-# management IP, and reboots the RU when the configuration changed (or always with force_reboot), then waits for its
-# radio initialization. Run on the node, not on the RU: the RU has neither Python (Ansible modules) nor an sftp server.
-# Tasks of IFRAN's ru/benetel/configure role (fhi72 branch, validated on R2Lab), with their inputs read from the
-# miscellaneous field.
-
-# Input (miscellaneous field of the deployment model):
-# - ru_targets.<node>: {name: RU name, ip: RU management IP}, for the nodes with an RU (others are skipped)
-# - ru_config.<RU name>: dict[str, str] (ru_config.cfg values)
-# - force_reboot: bool (extra variable, default false)
-
-# The role then waits for the radio initialization of the RU (ADRV9025 transceiver, /tmp/logs/radio_boot_response):
-# an RU whose radio failed to initialize still answers ping and carries the fronthaul, but transmits and receives
-# nothing (a DU then sees no PRACH at all).
-
-# Output: None
+# Render /etc/ru_config.cfg
 ---
-- name: Skip the nodes without RU
-  ansible.builtin.meta: end_host
-  when: inventory_hostname not in ((miscellaneous | default({}, true)).ru_targets | default({}, true))
-
-- name: Set the RU of the node
-  ansible.builtin.set_fact:
-    ru_name: "{{ miscellaneous.ru_targets[inventory_hostname].name }}"
-    ru_ip: "{{ miscellaneous.ru_targets[inventory_hostname].ip }}"
-    ru_config: "{{ miscellaneous.ru_config[miscellaneous.ru_targets[inventory_hostname].name] }}"
-
-- name: Set SSH options to reach the RU
-  ansible.builtin.set_fact:
-    configure_ssh_options: >-
-      -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
-      -o UserKnownHostsFile=/root/.ssh/known_hosts_ifran_rus
-
-- name: Wait for the RU management IP to answer
-  ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
-  register: configure_ping
-  until: configure_ping.rc == 0
-  retries: 30
-  delay: 5
-  changed_when: false
-
-- name: Render the configuration of the RU
+- name: Render RU configuration locally
   ansible.builtin.template:
     src: ru_config.cfg.j2
-    dest: /tmp/ifran-{{ ru_name }}-ru_config.cfg
+    dest: "/tmp/ru_config-{{ inventory_hostname }}.cfg"
     mode: "0644"
+  delegate_to: localhost
+  become: false
 
-- name: Read the configuration file of the RU
-  ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} cat /etc/ru_config.cfg
-  register: configure_current_config
-  changed_when: false
-  failed_when: false
+- name: Install the rendered RU configuration
+  ansible.builtin.raw: |
+    cat > /etc/ru_config.cfg <<'EOF'
+    {{ lookup('ansible.builtin.file', '/tmp/ru_config-' ~ inventory_hostname ~ '.cfg') }}
+    EOF
+    chown root:root /etc/ru_config.cfg
+    chmod 0644 /etc/ru_config.cfg
+  become: true
+  register: ru_config_file
+  changed_when: true
 
-- name: Read the rendered configuration of the RU
-  ansible.builtin.slurp:
-    src: /tmp/ifran-{{ ru_name }}-ru_config.cfg
-  register: configure_new_config
+- name: Save the configuration for post-reboot verification
+  ansible.builtin.set_fact:
+    ru_expected_config: "{{ lookup('ansible.builtin.file', '/tmp/ru_config-' ~ inventory_hostname ~ '.cfg') | b64encode }}"
 
-- name: Load the configuration and reboot the RU
-  when: >-
-    force_reboot | default(false) | bool
-    or configure_current_config.rc != 0
-    or (configure_current_config.stdout | trim) != (configure_new_config.content | b64decode | trim)
-  block:
-    # the RU has no sftp server: legacy scp protocol (-O)
-    - name: Copy the configuration to the RU
-      ansible.builtin.command: >-
-        scp -O {{ configure_ssh_options }} /tmp/ifran-{{ ru_name }}-ru_config.cfg root@{{ ru_ip }}:/etc/ru_config.cfg
-      changed_when: true
-
-    # the SSH connection is closed by the reboot
-    - name: Reboot the RU
-      ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} /sbin/reboot
-      register: configure_reboot
-      changed_when: true
-      failed_when: configure_reboot.rc not in [0, 255]
-
-    - name: Wait for the RU to go down after the reboot
-      ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
-      register: configure_down
-      until: configure_down.rc != 0
-      retries: 30
-      delay: 2
-      changed_when: false
-      failed_when: false
-
-    - name: Wait for the RU to be back after the reboot
-      ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
-      register: configure_up
-      until: configure_up.rc == 0
-      retries: 60
-      delay: 5
-      changed_when: false
-
-    - name: Check the configuration loaded on the RU
-      ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} cat /etc/ru_config.cfg
-      register: configure_loaded_config
-      until: configure_loaded_config.rc == 0
-      retries: 12
-      delay: 5
-      changed_when: false
-      failed_when: >-
-        configure_loaded_config.rc != 0
-        or (configure_loaded_config.stdout | trim) != (configure_new_config.content | b64decode | trim)
-
-# The RU logs each radio initialization attempt in /tmp/logs/radio_boot_response (cleared by a reboot): a success
-# ends with "DPD configuration complete", a failure with "ERROR: : main:<line> has failed." and the RU retries
-# about every 90 seconds. Two failures are reported as an error, so that no DU is deployed on a mute RU.
-# The file also holds the RU EEPROM dump, whose empty fields are not valid UTF-8 (rejected by Ansible): only the
-# ASCII lines of the initialization results are read.
-- name: Wait for the radio initialization of the RU
-  ansible.builtin.command: >-
-    ssh {{ configure_ssh_options }} root@{{ ru_ip }}
-    "tr -cd '\012\040-\176' < /tmp/logs/radio_boot_response | grep -E 'has failed|DPD configuration complete'; true"
-  register: configure_radio
-  until: >-
-    configure_radio.rc == 0
-    and ('DPD configuration complete' in configure_radio.stdout or configure_radio.stdout.count('has failed') >= 2)
-  retries: 60
-  delay: 5
-  changed_when: false
-
-- name: Check the radio initialization of the RU
-  ansible.builtin.assert:
-    that:
-      - configure_radio.stdout.rfind('DPD configuration complete') > configure_radio.stdout.rfind('has failed')
-    fail_msg: >-
-      The radio of RU '{{ ru_name }}' failed to initialize ({{ configure_radio.stdout.count('has failed') }} attempts,
-      /tmp/logs/radio_boot_response on the RU): check its configuration (/etc/ru_config.cfg, e.g. tx_power_dbm).
-    quiet: true
+- name: Remove temporary rendered configuration
+  ansible.builtin.file:
+    path: "/tmp/ru_config-{{ inventory_hostname }}.cfg"
+    state: absent
+  delegate_to: localhost
+  become: false

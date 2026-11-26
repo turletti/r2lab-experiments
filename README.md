@@ -70,8 +70,9 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
   `MiscellaneousManagement.run_playbook` and the `miscellaneous` entries of `r2lab_experiments.fhi72`:
   - `fhi72`: O-RAN 7.2 setup of the `du_nodes` (NIC, VFs, IRQs, CPUs, sysctl, SR-IOV device plugin, PTP), roles of
     Ziyad Mabrouk's benetel_example (963744a), with the linuxptp build always run;
-  - `benetel`: Benetel RU configuration from the RAN node of each RU (tasks of IFRAN's former `ru/benetel/configure`
-    role: the RUs have no Python).
+  - `benetel`: Benetel RU configuration over SSH, through the RAN node of each RU (jumphost), with raw commands (the
+    RUs have no Python), then reboot and wait for the radio initialization: playbook and roles of the IFRAN Benetel
+    example (ifran-project/ifran#29, 3cedf64).
 
 ## Documentation
 

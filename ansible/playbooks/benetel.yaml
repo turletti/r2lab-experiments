@@ -1,8 +1,21 @@
-# Benetel RU configuration, from the RAN node of each RU (miscellaneous.ru_targets)
+# Benetel RU configuration
+# NOTE Benetel RUs do not have Python
 ---
-- name: Configure the Benetel RUs from their RAN node
-  hosts: du_nodes
+- name: Install Benetel RU configuration
+  hosts: rus
   gather_facts: false
-  become: true
   roles:
-    - role: benetel/configure
+    - role: "benetel/configure"
+
+- name: Reboot RU when configuration changed or reboot was forced
+  hosts: rus
+  gather_facts: false
+  roles:
+    - role: "benetel/reboot"
+      when: ru_config_file.changed or (force_reboot | default(false) | bool)
+
+- name: Wait for Benetel radio initialization
+  hosts: rus
+  gather_facts: false
+  roles:
+    - role: "benetel/wait"
