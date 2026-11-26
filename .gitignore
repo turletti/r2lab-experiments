@@ -7,3 +7,7 @@ results/
 .k8s-*.conf
 *_metamodel.yaml
 *_deployment_model.yaml
+
+# Documentation build (docs/convert.sh, sphinx-build)
+docs/notebooks/
+docs/_build/

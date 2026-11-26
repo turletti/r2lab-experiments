@@ -68,6 +68,17 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
   - `benetel`: Benetel RU configuration from the RAN node of each RU (tasks of IFRAN's former `ru/benetel/configure`
     role: the RUs have no Python).
 
+## Documentation
+
+Read the Docs builds this README and the notebooks as pages (`.readthedocs.yaml`). To build them locally, from the
+root of the repository:
+
+```bash
+.venv/bin/python -m pip install -r docs/requirements.txt
+PATH=.venv/bin:$PATH sh docs/convert.sh
+.venv/bin/python -m sphinx -W -b html docs docs/_build/html
+```
+
 ## Results
 
 Each experiment writes its artifacts under `notebooks/<name>/results/`, which is not committed.
