@@ -1,5 +1,40 @@
 {# Keep upstream values, adding only the statistics-parser configuration. #}
+{# On an O-RAN 7.2 node (derived_fhi72_params of the deployment model miscellaneous field, from #}
+{# r2lab_experiments.fhi72.fhi72_miscellaneous), the radio is fhi72 and the pod requests the SR-IOV VFs and the 1G #}
+{# hugepages of the node: IFRAN derives no radio for a Benetel RU and has no hugepages. The lines are inserted as #}
+{# text, and an unexpected upstream template fails the prepare step instead of deploying a DU without fronthaul. #}
+{% if miscellaneous is defined and component.node_name in (miscellaneous or {}).get('derived_fhi72_params', {}) %}
+{% set fhi72 = miscellaneous.derived_fhi72_params[component.node_name] %}
+{% set hugepages = miscellaneous.du_resources.limits.nf.hugepages_1gi %}
+{% set values %}{% include 'ran/oai/oai-' ~ component.type ~ '/values.yaml.j2' %}{% endset %}
+{% set nf_pattern = '^(    nf:\n      cpu: [^\n]*\n      memory: [^\n]*)$' %}
+{% if values | regex_findall('^  radio: ', multiline=True) | length != 1
+   or values | regex_findall(nf_pattern, multiline=True) | length != 2
+   or values | regex_findall('^readinessProbe: ', multiline=True) | length != 1 %}
+{# Undefined variable on purpose: fail the prepare step. #}
+{{ fhi72_values_injection_failed_radio_resources_or_readinessProbe_not_found }}
+{% endif %}
+{% set fhi72_block %}
+# O-RAN 7.2 fronthaul (radio fhi72): SR-IOV VFs of the node, in 'fhi_72.dpdk_devices' order
+fhi72:
+  sriovResources:
+{% for resource in fhi72.sriov_resources %}
+    - {{ resource }}
+{% endfor %}
+  pciDeviceEnvVars:
+{% for env_var in fhi72.pci_device_env_vars %}
+    - {{ env_var }}
+{% endfor %}
+  yqImage: docker.io/mikefarah/yq:4.47.2
+
+{% endset %}
+{{ values
+   | regex_replace('^  radio: [^\n]*$', '  radio: fhi72  # O-RAN 7.2 fronthaul', multiline=True)
+   | regex_replace(nf_pattern, '\\1\n      hugepages1Gi: ' ~ hugepages, multiline=True)
+   | regex_replace('^(readinessProbe: )', fhi72_block ~ '\\1', multiline=True) -}}
+{% else %}
 {% include 'ran/oai/oai-' ~ component.type ~ '/values.yaml.j2' %}
+{% endif %}
 
 metricsParser:
   enabled: true

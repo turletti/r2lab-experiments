@@ -5,7 +5,8 @@ Everything here is temporary: it goes away once IFRAN supports O-RAN 7.2 radio u
 OAI, and triggers handovers itself.
 
 - ``OAI_CHARTS``: the OAI charts of IFRAN's fhi72 branch with the NADOR monitoring additions (metrics-parser sidecar
-  reading the 2026.w46 UE header, CSI file on a hostPath, CSI flush thread out of the L1 thread pool).
+  reading the 2026.w46 UE header, CSI file on a hostPath, CSI flush thread out of the L1 thread pool). On an O-RAN 7.2
+  node, their values set the radio fhi72, the SR-IOV VFs and the 1G hugepages from ``miscellaneous``.
 - ``OCUDU_CHARTS``: the OCUDU gNB and DU charts of IFRAN with the O-RAN 7.2 fronthaul (SR-IOV VF, 1G hugepages, VF
   and CPU placeholders replaced at start), and the OCUDU templates that apply both the CSI logger SRS and the O-RAN 7.2
   edits (no ru_sdr section with ru_ofh, DPDK hal section, SSB power).

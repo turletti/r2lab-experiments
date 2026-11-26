@@ -32,9 +32,9 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev,notebooks]"
 ```
 
-The first cell of each notebook installs this repository (with `nador==1.1.1`) and then IFRAN: the `fhi72` branch
-for the Benetel notebooks (O-RAN 7.2 node setup and RU configuration, not yet in an IFRAN release), `main` for the
-AW2S ones. Restart the kernel after it.
+The first cell of each notebook installs this repository (with `nador==1.1.1`) and then IFRAN: the `develop` branch
+for the Benetel notebooks (UE configure, kubelet parameters, miscellaneous data in the rendered files, not yet in an
+IFRAN release), `main` for the AW2S ones. Restart the kernel after it.
 
 Next to the notebooks or at the root of this repository, a `.env` file (never committed) holds the R2Lab credentials:
 
@@ -49,7 +49,8 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
 ## What `r2lab_experiments` provides, until IFRAN has it
 
 - `OAI_CHARTS`: the OAI charts of IFRAN's `fhi72` branch with the NADOR monitoring additions (metrics-parser
-  sidecar reading the 2026.w46 UE header, CSI file on a hostPath, CSI flush thread out of the L1 thread pool).
+  sidecar reading the 2026.w46 UE header, CSI file on a hostPath, CSI flush thread out of the L1 thread pool). On an
+  O-RAN 7.2 node, their values set the radio `fhi72`, the SR-IOV VFs and the 1G hugepages from `miscellaneous`.
 - `OCUDU_CHARTS`: the OCUDU gNB and DU charts with the O-RAN 7.2 fronthaul (SR-IOV VF, 1G hugepages, VF and CPU
   placeholders replaced at start), and their templates: CSI logger SRS, and with `ru_ofh` no `ru_sdr` section, a
   DPDK `hal` section and the SSB power (-28 dBm).
@@ -65,8 +66,7 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
   - `fhi72`: O-RAN 7.2 setup of the `du_nodes` (NIC, VFs, IRQs, CPUs, sysctl, SR-IOV device plugin, PTP), roles of
     Ziyad Mabrouk's benetel_example (963744a), with the linuxptp build always run;
   - `benetel`: Benetel RU configuration from the RAN node of each RU (tasks of IFRAN's former `ru/benetel/configure`
-    role: the RUs have no Python);
-  - `ptp`: PTP alone, for the notebooks still on IFRAN's fhi72 branch.
+    role: the RUs have no Python).
 
 ## Results
 

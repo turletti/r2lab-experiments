@@ -21,19 +21,19 @@
   ansible.builtin.meta: end_host
   when: inventory_hostname not in ((miscellaneous | default({}, true)).ru_targets | default({}, true))
 
-- name: Set the RU of '{{ inventory_hostname }}'
+- name: Set the RU of the node
   ansible.builtin.set_fact:
     ru_name: "{{ miscellaneous.ru_targets[inventory_hostname].name }}"
     ru_ip: "{{ miscellaneous.ru_targets[inventory_hostname].ip }}"
     ru_config: "{{ miscellaneous.ru_config[miscellaneous.ru_targets[inventory_hostname].name] }}"
 
-- name: Set SSH options to reach RU '{{ ru_name }}'
+- name: Set SSH options to reach the RU
   ansible.builtin.set_fact:
     configure_ssh_options: >-
       -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
       -o UserKnownHostsFile=/root/.ssh/known_hosts_ifran_rus
 
-- name: Wait for the RU management IP to answer from '{{ inventory_hostname }}'
+- name: Wait for the RU management IP to answer
   ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
   register: configure_ping
   until: configure_ping.rc == 0
@@ -41,43 +41,43 @@
   delay: 5
   changed_when: false
 
-- name: Render the configuration of RU '{{ ru_name }}'
+- name: Render the configuration of the RU
   ansible.builtin.template:
     src: ru_config.cfg.j2
     dest: /tmp/ifran-{{ ru_name }}-ru_config.cfg
     mode: "0644"
 
-- name: Read the configuration file of RU '{{ ru_name }}'
+- name: Read the configuration file of the RU
   ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} cat /etc/ru_config.cfg
   register: configure_current_config
   changed_when: false
   failed_when: false
 
-- name: Read the rendered configuration of RU '{{ ru_name }}'
+- name: Read the rendered configuration of the RU
   ansible.builtin.slurp:
     src: /tmp/ifran-{{ ru_name }}-ru_config.cfg
   register: configure_new_config
 
-- name: Load the configuration and reboot RU '{{ ru_name }}'
+- name: Load the configuration and reboot the RU
   when: >-
     force_reboot | default(false) | bool
     or configure_current_config.rc != 0
     or (configure_current_config.stdout | trim) != (configure_new_config.content | b64decode | trim)
   block:
     # the RU has no sftp server: legacy scp protocol (-O)
-    - name: Copy the configuration to RU '{{ ru_name }}'
+    - name: Copy the configuration to the RU
       ansible.builtin.command: >-
         scp -O {{ configure_ssh_options }} /tmp/ifran-{{ ru_name }}-ru_config.cfg root@{{ ru_ip }}:/etc/ru_config.cfg
       changed_when: true
 
     # the SSH connection is closed by the reboot
-    - name: Reboot RU '{{ ru_name }}'
+    - name: Reboot the RU
       ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} /sbin/reboot
       register: configure_reboot
       changed_when: true
       failed_when: configure_reboot.rc not in [0, 255]
 
-    - name: Wait for the RU to go down after the reboot of '{{ ru_name }}'
+    - name: Wait for the RU to go down after the reboot
       ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
       register: configure_down
       until: configure_down.rc != 0
@@ -86,7 +86,7 @@
       changed_when: false
       failed_when: false
 
-    - name: Wait for the RU to be back after the reboot of '{{ ru_name }}'
+    - name: Wait for the RU to be back after the reboot
       ansible.builtin.command: ping -c 1 -W 2 {{ ru_ip }}
       register: configure_up
       until: configure_up.rc == 0
@@ -94,7 +94,7 @@
       delay: 5
       changed_when: false
 
-    - name: Check the configuration loaded on RU '{{ ru_name }}'
+    - name: Check the configuration loaded on the RU
       ansible.builtin.command: ssh {{ configure_ssh_options }} root@{{ ru_ip }} cat /etc/ru_config.cfg
       register: configure_loaded_config
       until: configure_loaded_config.rc == 0
@@ -110,7 +110,7 @@
 # about every 90 seconds. Two failures are reported as an error, so that no DU is deployed on a mute RU.
 # The file also holds the RU EEPROM dump, whose empty fields are not valid UTF-8 (rejected by Ansible): only the
 # ASCII lines of the initialization results are read.
-- name: Wait for the radio initialization of RU '{{ ru_name }}'
+- name: Wait for the radio initialization of the RU
   ansible.builtin.command: >-
     ssh {{ configure_ssh_options }} root@{{ ru_ip }}
     "tr -cd '\012\040-\176' < /tmp/logs/radio_boot_response | grep -E 'has failed|DPD configuration complete'; true"
@@ -122,7 +122,7 @@
   delay: 5
   changed_when: false
 
-- name: Check the radio initialization of RU '{{ ru_name }}'
+- name: Check the radio initialization of the RU
   ansible.builtin.assert:
     that:
       - configure_radio.stdout.rfind('DPD configuration complete') > configure_radio.stdout.rfind('has failed')
