@@ -21,6 +21,11 @@ is in the `r2lab_experiments` package of this repository, and goes away once IFR
 Each notebook has its monitoring profile (`monitoring.yaml`), the Prometheus queries of its experiments
 (`queries.json`) and, for the Benetel ones, the netplan of the RAN nodes (`netplan.yaml`).
 
+The guides of `docs/guide/` explain what the notebooks measure and check, and the notebooks link to them: the CSI
+([CSI guide](docs/guide/csi.md)) and the F1 handover ([procedure](docs/guide/handover-procedure.rst), how
+[OAI](docs/guide/handover-oai.rst) and [OCUDU](docs/guide/handover-ocudu.rst) implement and log it, the
+[handover report](docs/guide/handover.md) of NADOR and [how the notebooks trigger it](docs/guide/handover-trigger.rst)).
+
 ## Installation
 
 Python 3.12 or later (not a conda Python on macOS), in a virtual environment at the root of this repository, which
@@ -70,8 +75,9 @@ The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopno
 
 ## Documentation
 
-Read the Docs builds this README and the notebooks as pages (`.readthedocs.yaml`). To build them locally, from the
-root of the repository:
+Read the Docs builds this README, the guides and the notebooks as pages (`.readthedocs.yaml`). The guides are taken
+from the documentation of the NADOR release in use by `docs/nador_guides.py` (run it again when the NADOR requirement
+changes). To build the pages locally, from the root of the repository:
 
 ```bash
 .venv/bin/python -m pip install -r docs/requirements.txt
