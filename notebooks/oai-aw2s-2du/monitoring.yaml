@@ -1,8 +1,8 @@
-# Run the monitoring stack on sopnode-f3 alongside the core and RIC.
+# Monitoring runs on the VM node11: the CPUs of the RAN nodes sopnode-f1 and sopnode-f2 are isolated for the DUs.
 # eth0 carries core/N3 traffic in this example; retain RU-only Multus interfaces.
 # Override a target interface here if you attach N2/N3/N4 to a different pod interface.
 namespace: monitoring
-node_name: sopnode-f3
+node_name: node11
 metrics:
   ran:
     ran_kpis: false

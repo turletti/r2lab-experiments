@@ -38,8 +38,8 @@ python3.12 -m venv .venv
 ```
 
 The first cell of each notebook installs this repository (with `nador==1.1.1`) and then IFRAN: the `develop` branch
-for the Benetel notebooks (UE configure, kubelet parameters, miscellaneous data in the rendered files, not yet in an
-IFRAN release), `main` for the AW2S ones. Restart the kernel after it.
+for every notebook (UE configure, kubelet parameters, miscellaneous data in the rendered files, not yet in an IFRAN
+release). Restart the kernel after it.
 
 Next to the notebooks or at the root of this repository, a `.env` file (never committed) holds the R2Lab credentials:
 
@@ -49,7 +49,10 @@ R2LAB_EMAIL=<your R2Lab email>
 R2LAB_PASSWORD=<your R2Lab password>
 ```
 
-The SLICES CLI must be logged in (`slices auth login`), and the POS nodes (sopnode-f1 to f4) reserved.
+The SLICES CLI must be logged in (`slices auth login`), and the POS nodes reserved. Only the RAN nodes are servers
+(POS: `sopnode-f1`/`f2` for AW2S, `sopnode-f3`/`f4` for Benetel); the Kubernetes control plane, the core, the CUs, the
+RIC and the monitoring run on VMs (BI), destroyed by the last cell of each notebook, which also powers off the RUs and
+the UEs and frees the POS nodes.
 
 ## What `r2lab_experiments` provides, until IFRAN has it
 
