@@ -17,6 +17,8 @@ if [ "${NUM_VFS}" -gt "${TOTAL_VFS}" ]; then
 fi
 
 ip link set dev "${PF}" mtu {{ fhi72_params.mtu }} up
+# New VFs without driver: no iavf netdev whose MAC udev could rewrite after the MAC set below
+echo 0 > "${PF_SYS}/sriov_drivers_autoprobe"
 if [ "$(cat "${PF_SYS}/sriov_numvfs")" != "${NUM_VFS}" ]; then
   echo 0 > "${PF_SYS}/sriov_numvfs"
   echo "${NUM_VFS}" > "${PF_SYS}/sriov_numvfs"
