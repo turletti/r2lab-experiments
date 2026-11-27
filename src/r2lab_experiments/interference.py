@@ -1,14 +1,16 @@
 """
-Controlled radio interference in R2Lab, as in the 5g_ansible interference scenario: a USRP of an R2Lab fit node emits
-noise in the band of the cell, and another fit node can show the spectrum.
+Controlled radio interference in R2Lab, as in the 5g_ansible interference scenario: a USRP emits noise in the band of
+the cell, and an R2Lab fit node can show the spectrum. The USRP is either an N300 or an N320 of R2Lab, driven by a
+SophiaNode server (wide noise: tens of MHz), or the USRP of a fit node (B210 or B205mini, narrower noise).
 
-Temporary: IFRAN does not provision the R2Lab fit nodes (its R2Lab provisioner only powers RUs and UEs), so the fit
-nodes are driven here over SSH, through the R2Lab gateway (``faraday.inria.fr``), with the commands of 5g_ansible
-(``roles/scenarios/interference``):
+Temporary: IFRAN does not drive these USRPs (its R2Lab provisioner only powers RUs and UEs), so they are driven here
+over SSH, with the commands of 5g_ansible (``roles/scenarios/interference``, ``roles/r2lab/rru``):
 
-- ``rhubarbe`` on the gateway loads the ``gnuradio`` image on a fit node and powers its USRP on and off;
-- ``uhd_siggen`` (GNU Radio) on the fit node emits the interference: Gaussian or uniform noise, a sine tone, a constant
-  carrier, two tones or a sweep, centered on ``freq`` and ``rate`` wide;
+- ``rhubarbe`` on the R2Lab gateway (``faraday.inria.fr``) powers the N300/N320 on and off (``pdu``), loads the
+  ``gnuradio`` image on a fit node and powers its USRP on and off;
+- ``uhd_siggen`` (GNU Radio) emits the interference, on the server for an N300/N320 (UHD 4.7 and GNU Radio built by
+  the ``uhd_gnuradio`` role of this repository, as 5g_ansible does) or on the fit node: Gaussian or uniform noise, a
+  sine tone, a constant carrier, two tones or a sweep, centered on ``freq`` and ``rate`` wide;
 - ``uhd_rx_cfile`` on a second fit node captures samples for a spectrum snapshot (power spectral density computed on
   that node with numpy), or ``uhd_fft`` shows the live spectrum in a VNC session (5g_ansible ``watch`` role).
 
@@ -32,6 +34,8 @@ from typing import Any
 
 __all__ = [
     "FIT_USRPS",
+    "N3XX_USRPS",
+    "UHD_ENVIRONMENT",
     "WAVEFORMS",
     "FrequencyPlan",
     "LiveSpectrum",
@@ -42,16 +46,31 @@ __all__ = [
     "gateway_command",
     "grafana_dashboards",
     "iperf_intervals",
+    "node_ssh_command",
+    "power_n3xx",
     "power_off_fit_node",
     "prepare_fit_node",
     "prometheus_section_means",
     "section_windows",
     "spectrum_snapshot",
+    "wait_usrp",
 ]
 
 GATEWAY = "faraday.inria.fr"
 # Fit nodes with a USRP used by the 5g_ansible interference scenario (deploy.sh get_fit_info)
 FIT_USRPS = {"b210": 2, "b205mini": 8}
+# UHD device arguments of the R2Lab N300 and N320, as in 5g_ansible (roles/scenarios/interference/run): the N300 data
+# and management address can swap at boot (SFP0/SFP1); 192.168.235.103 is the one that answered with UHD 4.7
+N3XX_USRPS = {
+    "n300": "product=n300,serial=31D98C7,addr=192.168.235.103,mgmt_addr=192.168.235.103",
+    "n320": "product=n320,serial=31B3A77,addr=192.168.235.105,mgmt_addr=192.168.235.105,master_clock_rate=245.76e6",
+}
+# UHD 4.7 and GNU Radio built in /usr/local by the uhd_gnuradio role: GNU Radio must use this libuhd, not a system one
+# (5g_ansible), and its Python modules, which the Debian layout puts in /usr/local/lib/python3/dist-packages
+UHD_ENVIRONMENT = (
+    "LD_LIBRARY_PATH=/usr/local/lib LD_PRELOAD=/usr/local/lib/libuhd.so.4.7.0 PATH=/usr/local/bin:$PATH "
+    "PYTHONPATH=$(ls -d /usr/local/lib/python3*/dist-packages 2>/dev/null | paste -sd:)"
+)
 # uhd_siggen waveform options (GNU Radio gr-uhd/apps/uhd_siggen_base.py)
 WAVEFORMS = ("gaussian", "uniform", "sine", "const", "2tone", "sweep")
 # Line printed by uhd_siggen once its flow graph runs, i.e. once the USRP emits
@@ -128,6 +147,44 @@ async def prepare_fit_node(slice_name: str, fit_number: int, *, image: str = "gn
     return await _run(fit_command(slice_name, fit_number, "uhd_find_devices"), 120)
 
 
+def node_ssh_command(manager, node: str) -> list[str]:
+    """SSH command prefix (without the remote command) to a node of an IFRAN deployment model, with its jump hosts."""
+    from ifran.models.provisioning import SSHInfo
+    from ifran.utils.utils import deep_merge
+
+    model = manager.deployment_model
+    ssh = SSHInfo.model_validate(
+        deep_merge(
+            model.params.ssh.model_dump(mode="json", exclude_unset=True),
+            model.nodes[node].ssh_info.model_dump(mode="json", exclude_unset=True),
+        )
+    )
+    args = ["ssh", "-o", "BatchMode=yes", *shlex.split(ssh.get_common_args() or "")]
+    if ssh.private_key_file:
+        args += ["-i", str(Path(ssh.private_key_file).expanduser())]
+    return [*args, "-p", str(ssh.port), f"{ssh.user}@{ssh.hostname or node}"]
+
+
+async def power_n3xx(slice_name: str, usrp: str, *, on: bool) -> str:
+    """Power an R2Lab N300/N320 on or off (its PDU outlet, through the R2Lab gateway)."""
+    if usrp not in N3XX_USRPS:
+        raise ValueError(f"usrp must be one of {list(N3XX_USRPS)}")
+    return await _run(gateway_command(slice_name, f"rhubarbe pdu {'on' if on else 'off'} {usrp}"), 120)
+
+
+async def wait_usrp(ssh: list[str], usrp_args: str, *, timeout: float = 600, period: float = 15) -> str:
+    """Wait until ``uhd_find_devices`` (UHD 4.7) finds the USRP from the host of ``ssh``; return its output."""
+    command = f"{UHD_ENVIRONMENT} uhd_find_devices --args {shlex.quote(usrp_args)}"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return await _run([*ssh, command], 120)
+        except RuntimeError:
+            if time.monotonic() > deadline:
+                raise
+            await asyncio.sleep(period)
+
+
 async def power_off_fit_node(slice_name: str, fit_number: int) -> str:
     """Power the USRP and the fit node off."""
     output = await _run(gateway_command(slice_name, f"rhubarbe usrpoff {fit_number}"), 120)
@@ -137,7 +194,8 @@ async def power_off_fit_node(slice_name: str, fit_number: int) -> str:
 @dataclass
 class NoiseGenerator:
     """
-    Interference emitted by the USRP of a fit node with ``uhd_siggen``.
+    Interference emitted by a USRP with ``uhd_siggen``: the USRP of fit node ``fit_number`` by default, or, with
+    ``ssh`` (an SSH command prefix such as ``node_ssh_command``), the USRP of ``usrp_args`` driven by that host.
 
     ``start()`` returns once the USRP emits (``uhd_siggen`` prints its prompt once its flow graph runs) and ``stop()``
     answers the prompt, which stops the flow graph: the emission window is known to the second. ``safety_s`` bounds
@@ -154,6 +212,9 @@ class NoiseGenerator:
     waveform_freq: float = 0.0  # tone offset from freq (sine, 2tone, sweep), Hz
     waveform2_freq: float = 0.0  # second tone (2tone) or sweep rate (sweep), Hz
     usrp_args: str = ""
+    ssh: list[str] = field(default_factory=list)  # host running uhd_siggen (default: the fit node)
+    environment: str = ""  # variables set before uhd_siggen (UHD_ENVIRONMENT on a server)
+    verbose: bool = True  # uhd_siggen -v: prints the sample rate, gain and frequency actually set
     safety_s: int = 1800
     output: list[str] = field(default_factory=list)
     _process: asyncio.subprocess.Process | None = field(default=None, repr=False)
@@ -174,8 +235,17 @@ class NoiseGenerator:
             siggen += ["-y", f"{self.waveform2_freq:.0f}"]
         if self.usrp_args:
             siggen += ["--args", self.usrp_args]
+        if self.verbose:
+            siggen.append("-v")
         # unbuffered output: the ready line must come at once; SIGINT at the end of the safety delay
-        return f"PYTHONUNBUFFERED=1 timeout -s INT {int(self.safety_s)} {shlex.join(siggen)}"
+        environment = f"{self.environment} " if self.environment else ""
+        return f"{environment}PYTHONUNBUFFERED=1 timeout -s INT {int(self.safety_s)} {shlex.join(siggen)}"
+
+    def remote(self) -> list[str]:
+        """Local command that runs ``command()`` on the host of the USRP."""
+        if self.ssh:
+            return [*self.ssh, self.command()]
+        return fit_command(self.slice_name, self.fit_number, self.command())
 
     @property
     def emitting(self) -> bool:
@@ -187,7 +257,7 @@ class NoiseGenerator:
             raise RuntimeError("the noise generator already emits")
         self.output = []
         self._process = await asyncio.create_subprocess_exec(
-            *fit_command(self.slice_name, self.fit_number, self.command()),
+            *self.remote(),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,

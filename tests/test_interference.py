@@ -199,3 +199,38 @@ def test_annotate_grafana():
     assert posted[0][1] == {
         "dashboardUID": "a1", "time": 10500, "timeEnd": 20250, "tags": ["interference"], "text": "noise"
     }  # fmt: skip
+
+
+def test_noise_on_a_server_runs_through_its_ssh(monkeypatch, tmp_path):
+    noise = NoiseGenerator(
+        "s",
+        0,
+        freq=3477.5e6,
+        rate=40e6,
+        gain=60,
+        usrp_args=interference.N3XX_USRPS["n320"],
+        ssh=["ssh", "root@sopnode-f1"],
+        environment=interference.UHD_ENVIRONMENT,
+    )
+    remote = noise.remote()
+    assert remote[:2] == ["ssh", "root@sopnode-f1"]
+    assert remote[2].startswith("LD_LIBRARY_PATH=/usr/local/lib LD_PRELOAD=/usr/local/lib/libuhd.so.4.7.0")
+    assert "--args product=n320,serial=31B3A77" in remote[2] and remote[2].endswith(" -v")
+
+
+def test_power_n3xx_and_wait_usrp(monkeypatch):
+    calls = []
+
+    async def fake_run(args, timeout):
+        calls.append(args[-1])
+        if "uhd_find_devices" in args[-1] and len(calls) < 3:
+            raise RuntimeError("No UHD Devices Found")
+        return "ok"
+
+    monkeypatch.setattr(interference, "_run", fake_run)
+    asyncio.run(interference.power_n3xx("s", "n320", on=True))
+    assert calls == ["rhubarbe pdu on n320"]
+    with pytest.raises(ValueError):
+        asyncio.run(interference.power_n3xx("s", "x310", on=True))
+    assert asyncio.run(interference.wait_usrp(["ssh", "h"], "addr=192.168.235.105", period=0)) == "ok"
+    assert calls[-1].endswith("uhd_find_devices --args addr=192.168.235.105")

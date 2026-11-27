@@ -26,10 +26,12 @@ Each notebook has its monitoring profile (`monitoring.yaml`), the Prometheus que
 (`queries.json`) and, for the Benetel ones, the netplan of the RAN nodes (`netplan.yaml`).
 
 The `-interference` notebooks deploy the same network as their base notebook, then run the interference scenario of
-5g_ansible: during an iperf transfer of one UE, the USRP of an R2Lab fit node (B210 on fit02 or B205mini on fit08)
-emits noise in the band of the cell, between a baseline and a recovery section; the other fit node can show the
-spectrum. The notebooks explain the configuration (fit node, frequency, width, gain, waveform), and analyze the run
-with Grafana (annotations of the interference windows), the RAN metrics per section and the CSI per resource block.
+5g_ansible: during an iperf transfer of one UE, a USRP emits noise in the band of the cell, between a baseline and a
+recovery section, and a fit node can show the spectrum. The noise generator is the R2Lab N320 or N300, driven by a
+POS server that the notebook adds to the deployment (`sopnode-f1` with Benetel, `sopnode-f2` with AW2S) for noise of
+tens of MHz, or the USRP of a fit node (B210 on fit02, B205mini on fit08) for narrower noise. The notebooks explain the
+configuration (USRP, frequency, width, gain, waveform), and analyze the run with Grafana (annotations of the
+interference windows), the RAN metrics per section and the CSI per resource block.
 
 The guides of `docs/guide/` explain what the notebooks measure and check, and the notebooks link to them: the CSI
 ([CSI guide](docs/guide/csi.md)) and the F1 handover ([procedure](docs/guide/handover-procedure.rst), how
@@ -79,9 +81,10 @@ the UEs and frees the POS nodes.
   telnet server, port 9091, whole answer read before closing; OCUDU: `trigger_handover` on its remote control
   server), then reports it with NADOR's `HandoverWatch` and pings from the UE.
 
-- `r2lab_experiments.interference`: the fit nodes of the interference scenario, which IFRAN does not provision
-  (`rhubarbe` on the R2Lab gateway, `uhd_siggen` noise generator, `uhd_rx_cfile` spectrum snapshots or `uhd_fft` in
-  VNC), and the analysis of the run artifacts (sections, Prometheus means, CSI power per RB, Grafana annotations).
+- `r2lab_experiments.interference`: the USRPs of the interference scenario, which IFRAN does not drive (`rhubarbe`
+  on the R2Lab gateway for the N320/N300 power and the fit nodes, `uhd_siggen` noise generator on the noise server or
+  the fit node, `uhd_rx_cfile` spectrum snapshots or `uhd_fft` in VNC), and the analysis of the run artifacts
+  (sections, Prometheus means, CSI power per RB, Grafana annotations).
 
 - `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`) and their playbooks, run with
   `MiscellaneousManagement.run_playbook` and the `miscellaneous` entries of `r2lab_experiments.fhi72`:
@@ -89,7 +92,9 @@ the UEs and frees the POS nodes.
     Ziyad Mabrouk's benetel_example (963744a), with the linuxptp build always run;
   - `benetel`: Benetel RU configuration over SSH, through the RAN node of each RU (jumphost), with raw commands (the
     RUs have no Python), then reboot and wait for the radio initialization: playbook and roles of the IFRAN Benetel
-    example (ifran-project/ifran#29, 3cedf64).
+    example (ifran-project/ifran#29, 3cedf64);
+  - `usrp_noise`: noise server of the interference notebooks, R2Lab netplan then UHD 4.7 and GNU Radio built from
+    source (`uhd_gnuradio` role, from the 5g_ansible `setup/uhd-gnuradio` role).
 
 ## Documentation
 

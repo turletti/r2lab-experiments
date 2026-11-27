@@ -1,0 +1,9 @@
+# UHD and GNU Radio versions of the 5g_ansible setup/uhd-gnuradio role: the R2Lab N300 (MPM 4.7, FPGA 8.2) and
+# N320 need UHD 4.7, and GNU Radio (uhd_siggen) must be built against it
+---
+uhd_version: "UHD-4.7"
+gnuradio_version: "3.10.12.0"
+install_prefix: "/usr/local"
+uhd_src_dir: "/tmp/uhd"
+gnuradio_src_dir: "/tmp/gnuradio"
+make_jobs: "{{ ansible_facts['processor_vcpus'] | default(2) }}"

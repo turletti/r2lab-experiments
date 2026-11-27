@@ -1,0 +1,11 @@
+# Noise server of the interference notebooks: a SophiaNode server that drives the R2Lab N300/N320 with uhd_siggen.
+# The R2Lab netplan (r2lab_usrp VLAN on the radio trunk) reaches the USRPs, then UHD 4.7 and GNU Radio are built.
+# Extra variable: noise_node, the server (a node of the deployment model).
+---
+- name: Prepare the noise server
+  hosts: "{{ noise_node }}"
+  gather_facts: true
+  roles:
+    # netplan role of the r2lab tuning (notebooks/oai-aw2s/tuning), one netplan file per server
+    - role: tuning/netplan
+    - role: uhd_gnuradio
