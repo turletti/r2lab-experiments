@@ -92,6 +92,11 @@ the UEs and frees the POS nodes.
   the fit node, `uhd_rx_cfile` spectrum snapshots or `uhd_fft` in VNC), and the analysis of the run artifacts
   (sections, Prometheus means, CSI power per RB, Grafana annotations).
 
+- `r2lab_experiments.ue.connect_ues`: connects the COTS UEs and waits for the PDU session of each one in the log of
+  the Open5GS SMF, then disconnects and connects again a UE without session. The R2Lab radio API accepts a connect
+  sent before the UE registered (cell just on the air): it sets an address on `wwan0`, but the modem never requests
+  the session, and IFRAN marks the UE connected, so that a second connect is skipped.
+
 - `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`) and their playbooks, run with
   `MiscellaneousManagement.run_playbook` and the `miscellaneous` entries of `r2lab_experiments.fhi72`:
   - `fhi72`: O-RAN 7.2 setup of the `du_nodes` (NIC, VFs, IRQs, CPUs, sysctl, SR-IOV device plugin, PTP), roles of
