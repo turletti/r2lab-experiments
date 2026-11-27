@@ -1,7 +1,8 @@
 ---
+# readlink -e fails when the VF has no driver (VFs are created without driver autoprobe), while -f still prints the path
 - name: Read current VF driver
   ansible.builtin.command:
-    argv: [readlink, -f, "{{ fhi72_vf.stdout }}/driver"]
+    argv: [readlink, -e, "{{ fhi72_vf.stdout }}/driver"]
   register: fhi72_driver
   changed_when: false
   failed_when: false
@@ -29,7 +30,7 @@
 
 - name: Verify VF driver binding
   ansible.builtin.command:
-    argv: [readlink, -f, "{{ fhi72_vf.stdout }}/driver"]
+    argv: [readlink, -e, "{{ fhi72_vf.stdout }}/driver"]
   register: fhi72_verified_driver
   changed_when: false
   failed_when: fhi72_verified_driver.rc != 0 or fhi72_verified_driver.stdout | basename != 'vfio-pci'
