@@ -66,9 +66,10 @@
     dest: /etc/systemd/system/ifran-fhi72-tuning.service
     mode: "0644"
 
-- name: Enable and run fronthaul tuning
+# Enabled for the next boots only: the nic, vfs, irq and cpu roles above already applied the tuning, and running
+# it again here would reconfigure (MAC, VLAN, trust) VFs that are already bound to vfio-pci
+- name: Enable fronthaul tuning at boot
   ansible.builtin.systemd_service:
     name: ifran-fhi72-tuning
     enabled: true
     daemon_reload: true
-    state: started
