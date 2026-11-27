@@ -14,9 +14,24 @@ OAI, and triggers handovers itself.
 - ``use_ocudu_fhi72_files``: NADOR 1.1.1 renders OCUDU components that log CSI with its own templates, which do not
   apply the O-RAN 7.2 edits.
 - ``r2lab_experiments.handover.run_handover``: triggers an F1 handover and reports it with NADOR's HandoverWatch.
+- ``SSHInfo.common_args``: NADOR 1.1.1 reads this attribute of IFRAN 0.0.6, which IFRAN develop replaced by
+  ``get_common_args()``; importing this package gives it back.
 """
 
 from importlib.resources import files
+
+
+def _ssh_common_args_compat() -> None:
+    """Give IFRAN develop's SSHInfo the ``common_args`` of IFRAN 0.0.6, read by NADOR 1.1.1 (SSH tunnels, CSI)."""
+    try:
+        from ifran.models.provisioning import SSHInfo
+    except ImportError:  # IFRAN is installed by the first cell of the notebooks
+        return
+    if not hasattr(SSHInfo, "common_args") and hasattr(SSHInfo, "get_common_args"):
+        SSHInfo.common_args = property(SSHInfo.get_common_args)
+
+
+_ssh_common_args_compat()
 
 ASSETS = files(__name__) / "assets"
 OAI_CHARTS = ASSETS / "ran" / "oai"
