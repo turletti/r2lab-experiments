@@ -25,6 +25,12 @@ is in the `r2lab_experiments` package of this repository, and goes away once IFR
 Each notebook has its monitoring profile (`monitoring.yaml`), the Prometheus queries of its experiments
 (`queries.json`) and, for the Benetel ones, the netplan of the RAN nodes (`netplan.yaml`).
 
+Every notebook deploys the network in the same numbered stages, each one an IFRAN lifecycle manager or an Ansible
+playbook of this repository: provisioning of the nodes, RUs and UEs; Kubernetes; core (and RIC) with the RAN node
+setup (`fhi72` for Benetel, 5g_ansible `tuning` for AW2S); RAN; monitoring and UE connection. Stages that do not depend
+on each other run at the same time (`asyncio.gather`): the RU and UE configuration during Kubernetes, the RAN node
+setup during the core deployment. The "How the deployment runs" cell of each notebook gives its stages.
+
 The `-interference` notebooks deploy the same network as their base notebook, then run the interference scenario of
 5g_ansible: during an iperf transfer of one UE, a USRP emits noise in the band of the cell, between a baseline and a
 recovery section, and a fit node can show the spectrum. The noise generator is the R2Lab N320 or N300, driven by a
