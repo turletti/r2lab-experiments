@@ -2,7 +2,8 @@
 
 Notebooks that deploy a 5G network on [R2Lab](https://r2lab.inria.fr) and the SophiaNode servers with
 [IFRAN](https://github.com/ifran-project/ifran), monitor it with [NADOR](https://github.com/ifran-project/nador)
-(metrics, logs, CSI) and run experiments on it: iperf traffic, F1 handovers between two DUs.
+(metrics, logs, CSI) and run experiments on it: iperf traffic, F1 handovers between two DUs, controlled radio
+interference.
 
 NADOR is used as published (`nador==1.1.1`), without changes. What the notebooks need and neither tool provides yet
 is in the `r2lab_experiments` package of this repository, and goes away once IFRAN has it.
@@ -17,9 +18,18 @@ is in the `r2lab_experiments` package of this repository, and goes away once IFR
 | `notebooks/oai-benetel-2du` | OAI CU-CP, CU-UP, 2 DUs, O-RAN 7.2 | benetel1, benetel2 | F1, du01 ↔ du02 |
 | `notebooks/ocudu-benetel` | OCUDU gNB, O-RAN 7.2 | benetel1 | – |
 | `notebooks/ocudu-benetel-2du` | OCUDU CU-CP, CU-UP, 2 DUs, O-RAN 7.2 | benetel1, benetel2 | F1, du01 → du02 |
+| `notebooks/oai-aw2s-interference` | OAI gNB | AW2S Jaguar | – |
+| `notebooks/oai-benetel-interference` | OAI gNB, O-RAN 7.2 | benetel1 | – |
+| `notebooks/ocudu-benetel-interference` | OCUDU gNB, O-RAN 7.2 | benetel1 | – |
 
 Each notebook has its monitoring profile (`monitoring.yaml`), the Prometheus queries of its experiments
 (`queries.json`) and, for the Benetel ones, the netplan of the RAN nodes (`netplan.yaml`).
+
+The `-interference` notebooks deploy the same network as their base notebook, then run the interference scenario of
+5g_ansible: during an iperf transfer of one UE, the USRP of an R2Lab fit node (B210 on fit02 or B205mini on fit08)
+emits noise in the band of the cell, between a baseline and a recovery section; the other fit node can show the
+spectrum. The notebooks explain the configuration (fit node, frequency, width, gain, waveform), and analyze the run
+with Grafana (annotations of the interference windows), the RAN metrics per section and the CSI per resource block.
 
 The guides of `docs/guide/` explain what the notebooks measure and check, and the notebooks link to them: the CSI
 ([CSI guide](docs/guide/csi.md)) and the F1 handover ([procedure](docs/guide/handover-procedure.rst), how
@@ -68,6 +78,10 @@ the UEs and frees the POS nodes.
 - `r2lab_experiments.handover.run_handover`: sends the handover command to the CU-CP (OAI: `ci trigger_f1_ho` on its
   telnet server, port 9091, whole answer read before closing; OCUDU: `trigger_handover` on its remote control
   server), then reports it with NADOR's `HandoverWatch` and pings from the UE.
+
+- `r2lab_experiments.interference`: the fit nodes of the interference scenario, which IFRAN does not provision
+  (`rhubarbe` on the R2Lab gateway, `uhd_siggen` noise generator, `uhd_rx_cfile` spectrum snapshots or `uhd_fft` in
+  VNC), and the analysis of the run artifacts (sections, Prometheus means, CSI power per RB, Grafana annotations).
 
 - `ansible/`: the Ansible collections of the notebooks (`requirements.yaml`) and their playbooks, run with
   `MiscellaneousManagement.run_playbook` and the `miscellaneous` entries of `r2lab_experiments.fhi72`:
