@@ -234,3 +234,26 @@ def test_power_n3xx_and_wait_usrp(monkeypatch):
         asyncio.run(interference.power_n3xx("s", "x310", on=True))
     assert asyncio.run(interference.wait_usrp(["ssh", "h"], "addr=192.168.235.105", period=0)) == "ok"
     assert calls[-1].endswith("uhd_find_devices --args addr=192.168.235.105")
+
+
+def test_prepare_fit_node_downloads_missing_uhd_images(monkeypatch):
+    commands = []
+
+    async def run(args, timeout):
+        commands.append(args[-1])
+        return "found" if args[-1] == "uhd_find_devices" else ""
+
+    async def sleep(_):
+        return None
+
+    monkeypatch.setattr(interference, "_run", run)
+    monkeypatch.setattr(interference.asyncio, "sleep", sleep)
+    assert asyncio.run(interference.prepare_fit_node("slice", 2)) == "found"
+    assert commands == [
+        "rhubarbe usrpoff 2",
+        "rhubarbe load -t 600 -i gnuradio 2",
+        "rhubarbe wait -t 60 2",
+        "rhubarbe usrpon 2",
+        interference.FIT_UHD_IMAGES,
+        "uhd_find_devices",
+    ]

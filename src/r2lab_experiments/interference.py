@@ -95,6 +95,12 @@ def gateway_command(slice_name: str, command: str) -> list[str]:
     return ["ssh", *SSH_OPTIONS, f"{slice_name}@{GATEWAY}", command]
 
 
+# B2xx firmware and FPGA images of the UHD of the gnuradio image (/usr/local), downloaded when missing
+FIT_UHD_IMAGES = (
+    "test -e /usr/local/share/uhd/images/usrp_b200_fw.hex || /usr/local/lib/uhd/utils/uhd_images_downloader.py -t b2xx"
+)
+
+
 def fit_command(slice_name: str, fit_number: int, command: str | None, *, forwards: Iterable[str] = ()) -> list[str]:
     """
     SSH command running ``command`` as root on a fit node, through the gateway. Without command, the connection only
@@ -131,7 +137,9 @@ async def prepare_fit_node(slice_name: str, fit_number: int, *, image: str = "gn
     Load the GNU Radio image on a fit node and power its USRP on (5g_ansible scenarios/interference/setup).
 
     The USRP is powered off before the load, the image load takes several minutes (huge image), and the USRP gets
-    20 seconds to start once powered on. Returns the USRP seen by ``uhd_find_devices`` on the node.
+    20 seconds to start once powered on. The image has UHD in /usr/local but not always the B2xx firmware and FPGA
+    images, without which ``uhd_find_devices`` finds no USRP: they are downloaded when missing (as the 5g_ansible
+    interference recovery does). Returns the USRP seen by ``uhd_find_devices`` on the node.
     """
     steps = [
         (f"rhubarbe usrpoff {fit_number}", 120),
@@ -143,6 +151,9 @@ async def prepare_fit_node(slice_name: str, fit_number: int, *, image: str = "gn
         output = await _run(gateway_command(slice_name, command), timeout)
         if not quiet:
             print(f"{fit_name(fit_number)}: {command}\n{output}")
+    output = await _run(fit_command(slice_name, fit_number, FIT_UHD_IMAGES), 600)
+    if not quiet:
+        print(f"{fit_name(fit_number)}: {FIT_UHD_IMAGES}\n{output}")
     await asyncio.sleep(20)  # USRP start, as in 5g_ansible
     return await _run(fit_command(slice_name, fit_number, "uhd_find_devices"), 120)
 
