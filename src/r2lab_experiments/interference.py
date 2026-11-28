@@ -176,6 +176,20 @@ def node_ssh_command(manager, node: str) -> list[str]:
     return [*args, "-p", str(ssh.port), f"{ssh.user}@{ssh.hostname or node}"]
 
 
+def node_inventory(manager, node: str, group: str = "noise_nodes") -> str:
+    """
+    Ansible INI inventory of one node of an IFRAN deployment model, for MiscellaneousManagement.run_playbook.
+
+    IFRAN puts in its inventory only the nodes with a role (one group per role): a node without role, such as the
+    noise server, is not in it, and a playbook on it matches no host and succeeds without doing anything.
+    """
+    from ifran.utils.ansible import get_ansible_inventory_line
+
+    model = manager.deployment_model
+    line = get_ansible_inventory_line(resource_name=node, resource_data=model.nodes[node], ssh_params=model.params.ssh)
+    return f"[{group}]\n{line}\n"
+
+
 async def power_n3xx(slice_name: str, usrp: str, *, on: bool) -> str:
     """Power an R2Lab N300/N320 on or off (its PDU outlet, through the R2Lab gateway)."""
     if usrp not in N3XX_USRPS:

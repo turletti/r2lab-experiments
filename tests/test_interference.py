@@ -257,3 +257,17 @@ def test_prepare_fit_node_downloads_missing_uhd_images(monkeypatch):
         interference.FIT_UHD_IMAGES,
         "uhd_find_devices",
     ]
+
+
+def test_node_inventory_lists_a_node_without_role():
+    from types import SimpleNamespace
+
+    from ifran.models.provisioning import SSHInfo
+
+    node = SimpleNamespace(name="sopnode-f1", ssh_info=SSHInfo(hostname="172.28.2.76", user="root"))
+    manager = SimpleNamespace(
+        deployment_model=SimpleNamespace(nodes={"sopnode-f1": node}, params=SimpleNamespace(ssh=SSHInfo()))
+    )
+    inventory = interference.node_inventory(manager, "sopnode-f1")
+    assert inventory.startswith("[noise_nodes]\nsopnode-f1 ansible_host=172.28.2.76 ")
+    assert "ansible_user=root" in inventory

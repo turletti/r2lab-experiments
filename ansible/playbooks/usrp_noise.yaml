@@ -2,6 +2,17 @@
 # The R2Lab netplan (r2lab_usrp VLAN on the radio trunk) reaches the USRPs, then UHD 4.7 and GNU Radio are built.
 # Extra variable: noise_node, the server (a node of the deployment model).
 ---
+# A host missing from the inventory (IFRAN lists only the nodes with a role) would make the play below match no host,
+# and the playbook succeed without preparing anything
+- name: Check the noise server
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Check that the noise server is an inventory host
+      ansible.builtin.assert:
+        that: noise_node in groups['all']
+        fail_msg: "{{ noise_node }} is not in the inventory: give run_playbook the inventory of r2lab_experiments.interference.node_inventory"
+
 - name: Prepare the noise server
   hosts: "{{ noise_node }}"
   gather_facts: true
