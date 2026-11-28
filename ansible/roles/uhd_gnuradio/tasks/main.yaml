@@ -2,13 +2,14 @@
 # when libuhd 4.7 or this GNU Radio version is missing, with the VOLK package of the Ubuntu release
 ---
 - name: Read the installed GNU Radio version
-  ansible.builtin.shell: "{{ install_prefix }}/bin/gnuradio-config-info --version || echo none"
-  args:
-    executable: /bin/bash
+  ansible.builtin.command:
+    argv: ["{{ install_prefix }}/bin/gnuradio-config-info", --version]
   environment:
     LD_LIBRARY_PATH: "{{ install_prefix }}/lib"
   register: uhd_gnuradio_installed
   changed_when: false
+  failed_when: false  # not installed yet: no binary
+  check_mode: false  # read only
 
 - name: Check libuhd 4.7
   ansible.builtin.stat:
@@ -16,16 +17,36 @@
   register: uhd_gnuradio_libuhd
 
 - name: Build UHD and GNU Radio
-  when: not uhd_gnuradio_libuhd.stat.exists or uhd_gnuradio_installed.stdout | trim != gnuradio_version
+  when: >-
+    not uhd_gnuradio_libuhd.stat.exists or uhd_gnuradio_installed.rc != 0
+    or uhd_gnuradio_installed.stdout | trim != gnuradio_version
   block:
     # GNU Radio must link the UHD built here, not a system libuhd
-    - name: Remove the system UHD libraries
-      ansible.builtin.shell: |
-        apt-get remove --purge -y libuhd4.1.0 libuhd-dev uhd-host 2>/dev/null || true
-        find /usr/lib /lib -name "libuhd*.so*" -delete 2>/dev/null || true
-        ldconfig
-      args:
-        executable: /bin/bash
+    - name: Remove the system UHD packages
+      ansible.builtin.apt:
+        name: [libuhd4.1.0, libuhd-dev, uhd-host]
+        state: absent
+        purge: true
+
+    # /lib is /usr/lib on the Ubuntu releases of the POS images (merged /usr)
+    - name: Find the system UHD libraries left
+      ansible.builtin.find:
+        paths: /usr/lib
+        patterns: "libuhd*.so*"
+        file_type: any
+        recurse: true
+      register: uhd_gnuradio_system_libuhd
+
+    - name: Remove the system UHD libraries left
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ uhd_gnuradio_system_libuhd.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Reload the library cache without the system UHD
+      ansible.builtin.command: ldconfig
       changed_when: true
 
     - name: Install the build dependencies
@@ -74,17 +95,37 @@
         depth: 1
         force: true
 
-    - name: Build and install UHD
-      ansible.builtin.shell: |
-        set -e
-        mkdir -p {{ uhd_src_dir }}/host/build
-        cd {{ uhd_src_dir }}/host/build
-        cmake ../ -DCMAKE_INSTALL_PREFIX={{ install_prefix }} -DENABLE_PYTHON_API=ON -DENABLE_TESTS=OFF
-        make -j{{ make_jobs }}
-        make install
-        ldconfig
-      args:
-        executable: /bin/bash
+    - name: Create the UHD build directory
+      ansible.builtin.file:
+        path: "{{ uhd_src_dir }}/host/build"
+        state: directory
+        mode: "0755"
+
+    - name: Configure UHD
+      ansible.builtin.command:
+        argv:
+          - cmake
+          - ../
+          - "-DCMAKE_INSTALL_PREFIX={{ install_prefix }}"
+          - -DENABLE_PYTHON_API=ON
+          - -DENABLE_TESTS=OFF
+        chdir: "{{ uhd_src_dir }}/host/build"
+      changed_when: true
+
+    - name: Build UHD
+      ansible.builtin.command:
+        argv: [make, "-j{{ make_jobs }}"]
+        chdir: "{{ uhd_src_dir }}/host/build"
+      changed_when: true
+
+    - name: Install UHD
+      ansible.builtin.command:
+        argv: [make, install]
+        chdir: "{{ uhd_src_dir }}/host/build"
+      changed_when: true
+
+    - name: Reload the library cache with this UHD
+      ansible.builtin.command: ldconfig
       changed_when: true
 
     - name: Clone GNU Radio
@@ -95,38 +136,50 @@
         depth: 1
         force: true
 
-    - name: Build and install GNU Radio against this UHD
-      ansible.builtin.shell: |
-        set -e
-        mkdir -p {{ gnuradio_src_dir }}/build
-        cd {{ gnuradio_src_dir }}/build
-        ldconfig
-        cmake ../ \
-          -DCMAKE_INSTALL_PREFIX={{ install_prefix }} \
-          -DCMAKE_PREFIX_PATH={{ install_prefix }} \
-          -DCMAKE_LIBRARY_PATH={{ install_prefix }}/lib \
-          -DCMAKE_INCLUDE_PATH={{ install_prefix }}/include \
-          -DUHD_DIR={{ install_prefix }}/lib/cmake/uhd \
-          -DUHD_LIBRARIES={{ install_prefix }}/lib/libuhd.so \
-          -DUHD_INCLUDE_DIRS={{ install_prefix }}/include \
-          -DENABLE_DEFAULT=OFF \
-          -DENABLE_GNURADIO_RUNTIME=ON \
-          -DENABLE_PYTHON=ON \
-          -DENABLE_GRC=ON \
-          -DENABLE_GR_QTGUI=ON \
-          -DENABLE_GR_BLOCKS=ON \
-          -DENABLE_GR_ANALOG=ON \
-          -DENABLE_GR_FFT=ON \
-          -DENABLE_GR_FILTER=ON \
-          -DENABLE_GR_DIGITAL=ON \
-          -DENABLE_GR_UHD=ON \
-          -DENABLE_TESTING=OFF \
-          -DENABLE_DOXYGEN=OFF
-        make -j{{ make_jobs }}
-        make install
-        ldconfig
-      args:
-        executable: /bin/bash
+    - name: Create the GNU Radio build directory
+      ansible.builtin.file:
+        path: "{{ gnuradio_src_dir }}/build"
+        state: directory
+        mode: "0755"
+
+    - name: Configure GNU Radio against this UHD
+      ansible.builtin.command:
+        argv:
+          - cmake
+          - ../
+          - "-DCMAKE_INSTALL_PREFIX={{ install_prefix }}"
+          - "-DCMAKE_PREFIX_PATH={{ install_prefix }}"
+          - "-DCMAKE_LIBRARY_PATH={{ install_prefix }}/lib"
+          - "-DCMAKE_INCLUDE_PATH={{ install_prefix }}/include"
+          - "-DUHD_DIR={{ install_prefix }}/lib/cmake/uhd"
+          - "-DUHD_LIBRARIES={{ install_prefix }}/lib/libuhd.so"
+          - "-DUHD_INCLUDE_DIRS={{ install_prefix }}/include"
+          - -DENABLE_DEFAULT=OFF
+          - -DENABLE_GNURADIO_RUNTIME=ON
+          - -DENABLE_PYTHON=ON
+          - -DENABLE_GRC=ON
+          - -DENABLE_GR_QTGUI=ON
+          - -DENABLE_GR_BLOCKS=ON
+          - -DENABLE_GR_ANALOG=ON
+          - -DENABLE_GR_FFT=ON
+          - -DENABLE_GR_FILTER=ON
+          - -DENABLE_GR_DIGITAL=ON
+          - -DENABLE_GR_UHD=ON
+          - -DENABLE_TESTING=OFF
+          - -DENABLE_DOXYGEN=OFF
+        chdir: "{{ gnuradio_src_dir }}/build"
+      changed_when: true
+
+    - name: Build GNU Radio
+      ansible.builtin.command:
+        argv: [make, "-j{{ make_jobs }}"]
+        chdir: "{{ gnuradio_src_dir }}/build"
+      changed_when: true
+
+    - name: Install GNU Radio
+      ansible.builtin.command:
+        argv: [make, install]
+        chdir: "{{ gnuradio_src_dir }}/build"
       changed_when: true
 
     - name: Add the install prefix to the library cache
@@ -140,14 +193,23 @@
       changed_when: true
 
 # Same environment as r2lab_experiments.interference.UHD_ENVIRONMENT
+- name: Find the Python packages of this GNU Radio
+  ansible.builtin.find:
+    paths: "{{ install_prefix }}/lib"
+    patterns: "python3*"
+    file_type: directory
+  register: uhd_gnuradio_python
+
 - name: Check uhd_siggen with this UHD and GNU Radio
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYTHONPATH=$(ls -d {{ install_prefix }}/lib/python3*/dist-packages | paste -sd:)
-    {{ install_prefix }}/bin/uhd_siggen --help | head -1
-  args:
-    executable: /bin/bash
+  ansible.builtin.command:
+    argv: ["{{ install_prefix }}/bin/uhd_siggen", --help]
   environment:
     LD_LIBRARY_PATH: "{{ install_prefix }}/lib"
     LD_PRELOAD: "{{ install_prefix }}/lib/libuhd.so.4.7.0"
+    PYTHONPATH: "{{ uhd_gnuradio_python.files | map(attribute='path') | map('regex_replace', '$', '/dist-packages') | join(':') }}"
+  register: uhd_gnuradio_siggen
   changed_when: false
+
+- name: Show the uhd_siggen usage line
+  ansible.builtin.debug:
+    msg: "{{ uhd_gnuradio_siggen.stdout_lines | first }}"
