@@ -469,6 +469,10 @@ class FrequencyPlan:
     def center_hz(self) -> float:
         return (self.low_hz + self.high_hz) / 2
 
+    def rb_range_hz(self, first: int, last: int) -> tuple[float, float]:
+        """Lower edge of RB first and upper edge of RB last."""
+        return self.low_hz + first * self.rb_hz, self.low_hz + (last + 1) * self.rb_hz
+
     @property
     def ssb_hz(self) -> float | None:
         """SSB center (20 RB wide)."""
@@ -641,6 +645,96 @@ def csi_rb_stats(path: str | Path, rnti: str | None = None) -> tuple[list[int], 
     mean_db = [10 * math.log10(stats[i][0] / stats[i][1]) for i in rbs]
     std_db = [math.sqrt(stats[i][3] / stats[i][1]) for i in rbs]
     return rbs, mean_db, std_db, rows
+
+
+def csi_rb_snr(path: str | Path, rnti: str | None = None) -> tuple[list[int], list[float], int]:
+    """
+    SNR per RB of the SRS channel estimates of a CSI v3.1 file (``csi_per_rb.csv`` or its ``.gz`` cut), for one UE
+    (``rnti``, hexadecimal with or without 0x) or all UEs.
+
+    For each SRS occasion, receive antenna and port, the estimate of an RB is H + N. The channel H changes little from
+    one RB to the next (static UE), the noise N is independent: the second difference
+    ``e = Ĥ[rb] - (Ĥ[rb-1] + Ĥ[rb+1]) / 2`` is mostly noise, of power 1.5 x the noise power. The SNR of an RB is
+    ``(E|Ĥ|² - N) / N`` with ``N = E|e|² / 1.5``. A power change of an occasion (UE power control, gain) scales both terms: unlike the
+    mean |H|², the SNR shows the noise. RBs without estimate, and the edges, are left out.
+    Returns (RBs, SNR dB, estimates used).
+    """
+    want = None if rnti is None else int(rnti, 16)
+    signal: dict[int, float] = {}
+    noise: dict[int, float] = {}
+    used = 0
+
+    def flush(h: dict[int, complex]) -> None:
+        nonlocal used
+        for rb, value in h.items():
+            if rb - 1 in h and rb + 1 in h:
+                error = value - (h[rb - 1] + h[rb + 1]) / 2
+                signal[rb] = signal.get(rb, 0.0) + abs(value) ** 2
+                noise[rb] = noise.get(rb, 0.0) + abs(error) ** 2 / 1.5
+                used += 1
+
+    columns = None
+    occasion, estimates = None, {}
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt") as fp:
+        for line in fp:
+            if line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split(",")
+            if columns is None:  # column header
+                names = [c.strip() for c in fields]
+                columns = [names.index(n) for n in ("frame", "slot", "rnti", "ant_rx", "port_tx", "rb", "real", "imag")]
+                continue
+            try:
+                frame, slot, ue, antenna, port, rb, real, imag = (fields[i] for i in columns)
+                if want is not None and int(ue, 16) != want:
+                    continue
+                value = complex(float(real), float(imag))
+                key = (frame, slot, ue, antenna, port)
+                index = int(rb)
+            except (ValueError, IndexError):
+                continue
+            if key != occasion:  # the rows of an occasion are contiguous in the file
+                flush(estimates)
+                occasion, estimates = key, {}
+            if value:
+                estimates[index] = value
+    flush(estimates)
+    # E|Ĥ|² is |H|² + the noise power: the noise is removed from it (RBs where the noise dominates are left out)
+    rbs = sorted(rb for rb in signal if 0 < noise[rb] < signal[rb])
+    return rbs, [10 * math.log10((signal[rb] - noise[rb]) / noise[rb]) for rb in rbs], used
+
+
+def snr_change(
+    baseline: dict[int, float], interference: dict[int, float], recovery: dict[int, float], *, smooth_rbs: int = 5
+) -> dict[int, float]:
+    """
+    SNR change (dB) of each RB in the interference section, compared with the lowest of the baseline and the
+    recovery: compared with both, a drift of the channel between the sections is not taken for the noise. The change
+    is averaged over smooth_rbs neighbour RBs, as the SNR of a single RB fluctuates by 1 to 2 dB.
+    """
+    rbs = sorted(set(baseline) & set(interference) & set(recovery))
+    raw = {rb: interference[rb] - min(baseline[rb], recovery[rb]) for rb in rbs}
+    half = smooth_rbs // 2
+    smoothed = {}
+    for rb in rbs:
+        around = [raw[i] for i in range(rb - half, rb + half + 1) if i in raw]
+        smoothed[rb] = sum(around) / len(around)
+    return smoothed
+
+
+def impacted_rbs(change: dict[int, float], *, margin_db: float = 2.0, max_gap: int = 2) -> list[tuple[int, int]]:
+    """
+    Ranges (first, last) of the RBs whose SNR change (``snr_change``) is below -margin_db; ranges separated by at
+    most max_gap RBs are merged.
+    """
+    ranges: list[tuple[int, int]] = []
+    for rb in sorted(rb for rb, value in change.items() if value < -margin_db):
+        if ranges and rb - ranges[-1][1] <= max_gap + 1:
+            ranges[-1] = (ranges[-1][0], rb)
+        else:
+            ranges.append((rb, rb))
+    return ranges
 
 
 def _grafana(url: str, path: str, body: dict | None = None, auth=("admin", "admin")) -> Any:

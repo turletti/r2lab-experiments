@@ -313,3 +313,69 @@ def test_traffic_rnti():
     assert (
         interference.traffic_rnti({"slice_throughput_bps:slice_throughput": {"uplink_baseline": 1.0}}, "uplink") is None
     )
+
+
+def _csi_file(path, snr_db_per_rb, *, occasions=200, gains=(1.0,), rnti="0xc6f9", other=None, seed=3):
+    """CSI cut of a smooth channel (slow phase rotation across RBs) with complex noise of a given SNR per RB."""
+    import random
+
+    rng = random.Random(seed)
+    lines = [CSI_HEADER.rstrip("\n")]
+    for occasion in range(occasions):
+        gain = gains[occasion % len(gains)]
+        for ue in [rnti] + ([other] if other else []):
+            for antenna in range(2):
+                for rb, snr_db in enumerate(snr_db_per_rb):
+                    h = 1000 * gain * complex(math.cos(0.02 * rb + antenna), math.sin(0.02 * rb + antenna))
+                    sigma = abs(h) / math.sqrt(2 * 10 ** (snr_db / 10))
+                    value = h + complex(rng.gauss(0, sigma), rng.gauss(0, sigma))
+                    lines.append(f"{occasion},0,{ue},{antenna},0,{rb},{value.real:.1f},{value.imag:.1f}")
+    with gzip.open(path, "wt") as fp:
+        fp.write("\n".join(lines) + "\n")
+
+
+def test_csi_rb_snr_recovers_the_snr_of_each_rb(tmp_path):
+    profile = [15.0] * 20 + [5.0] * 20 + [15.0] * 20
+    path = tmp_path / "csi.csv.gz"
+    _csi_file(path, profile, other="0x224b")
+    rbs, snr, used = interference.csi_rb_snr(path, "c6f9")
+    assert rbs == list(range(1, 59))  # edges left out
+    assert used == 200 * 2 * 58
+    by_rb = dict(zip(rbs, snr))
+    assert all(abs(by_rb[rb] - 15) < 1 for rb in range(2, 18))
+    assert all(abs(by_rb[rb] - 5) < 1 for rb in range(22, 38))  # E|Ĥ|² minus the noise: no bias at low SNR
+
+
+def test_csi_rb_snr_ignores_the_power_of_each_occasion(tmp_path):
+    flat, scaled = tmp_path / "flat.csv.gz", tmp_path / "scaled.csv.gz"
+    _csi_file(flat, [10.0] * 30)
+    _csi_file(scaled, [10.0] * 30, gains=(1.0, 3.0, 0.3))  # UE power control: |H|² moves by ±10 dB
+    flat_snr, scaled_snr = interference.csi_rb_snr(flat)[1], interference.csi_rb_snr(scaled)[1]
+    assert sum(scaled_snr) / len(scaled_snr) == pytest.approx(10, abs=0.3)
+    assert sum(flat_snr) / len(flat_snr) == pytest.approx(10, abs=0.3)
+    assert scaled_snr == pytest.approx(flat_snr, abs=1)
+
+
+def test_snr_change_against_both_references():
+    baseline = {rb: 12.0 for rb in range(10)}
+    recovery = {rb: 14.0 for rb in range(10)}
+    interference_snr = {rb: 11.0 for rb in range(10)} | {3: 8.0, 4: 7.0}
+    # compared with the lowest reference (baseline): RB 0 is 1 dB down, not 3 dB as against the recovery
+    raw = interference.snr_change(baseline, interference_snr, recovery, smooth_rbs=1)
+    assert raw[0] == pytest.approx(-1) and raw[4] == pytest.approx(-5)
+    assert interference.snr_change(baseline, interference_snr, recovery, smooth_rbs=3)[4] == pytest.approx(
+        (-4 - 5 - 1) / 3
+    )
+
+
+def test_impacted_rbs_merges_small_gaps():
+    change = {rb: 0.0 for rb in range(30)} | {rb: -3.0 for rb in (2, 3, 4, 6, 7, 20, 21)}
+    assert interference.impacted_rbs(change) == [(2, 7), (20, 21)]
+    assert interference.impacted_rbs(change, max_gap=0) == [(2, 4), (6, 7), (20, 21)]
+    assert interference.impacted_rbs(change, margin_db=3.5) == []
+
+
+def test_rb_range_hz():
+    plan = interference.FrequencyPlan(point_a_arfcn=626772, n_rb=273)
+    low, high = plan.rb_range_hz(6, 9)
+    assert low / 1e6 == pytest.approx(3401.58 + 6 * 0.36) and high - low == pytest.approx(4 * 360e3)

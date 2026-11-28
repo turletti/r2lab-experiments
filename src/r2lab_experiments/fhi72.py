@@ -115,8 +115,9 @@ def benetel_tdd_config(radio_config) -> dict[str, str]:
     }
 
 
-def benetel_ru_config(metamodel, ru_name: str, component_name: str, node_params: Fhi72NodeParams,
-                      params: BenetelRUParams) -> dict[str, str]:
+def benetel_ru_config(
+    metamodel, ru_name: str, component_name: str, node_params: Fhi72NodeParams, params: BenetelRUParams
+) -> dict[str, str]:
     """/etc/ru_config.cfg values of a Benetel RU served by a metamodel gNB or DU on an O-RAN 7.2 node."""
     ru_meta = metamodel.rus[ru_name]
     radio_config = metamodel.ran.components[component_name].config.radioConfiguration
@@ -152,8 +153,9 @@ def benetel_ru_config(metamodel, ru_name: str, component_name: str, node_params:
     return config | params.extra
 
 
-def fhi72_miscellaneous(metamodel, nodes: dict[str, Fhi72NodeParams],
-                        rus: dict[str, tuple[str, str, BenetelRUParams]], hugepages_1gi: str) -> dict:
+def fhi72_miscellaneous(
+    metamodel, nodes: dict[str, Fhi72NodeParams], rus: dict[str, tuple[str, str, BenetelRUParams]], hugepages_1gi: str
+) -> dict:
     """
     ``miscellaneous`` entries of the O-RAN 7.2 nodes and Benetel RUs.
 
