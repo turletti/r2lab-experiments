@@ -3,6 +3,7 @@
 import asyncio
 import gzip
 import json
+import math
 import subprocess
 import sys
 import threading
@@ -271,3 +272,44 @@ def test_node_inventory_lists_a_node_without_role():
     inventory = interference.node_inventory(manager, "sopnode-f1")
     assert inventory.startswith("[noise_nodes]\nsopnode-f1 ansible_host=172.28.2.76 ")
     assert "ansible_user=root" in inventory
+
+
+CSI_HEADER = (
+    '# { "granularity": "rb", "format_version": "3.1", "columns": [ "frame", "slot", "rnti", "ant_rx", "port_tx", '
+    '"rb", "real", "imag" ] }\nframe,slot,rnti,ant_rx,port_tx,rb,real,imag\n# TIMESTAMP: 2026-11-28 20:01:18\n'
+)
+
+
+def test_csi_rb_stats_per_ue_without_empty_rbs(tmp_path):
+    rows = [
+        "164,4,0xc6f9,0,0,0,100,0",  # iperf UE, RB 0: 40 dB
+        "164,4,0xc6f9,1,0,0,100,0",
+        "164,4,0xc6f9,0,0,1,1000,0",  # RB 1: 60 and 40 dB
+        "164,4,0xc6f9,1,0,1,100,0",
+        "164,4,0xc6f9,0,0,2,0,0",  # RB 2 without SRS: left out, not -200 dB
+        "164,4,0x224b,0,0,0,10,0",  # another UE
+    ]
+    path = tmp_path / "csi_per_rb.csv.gz"
+    with gzip.open(path, "wt") as fp:
+        fp.write(CSI_HEADER + "\n".join(rows) + "\n")
+    rbs, mean_db, std_db, used = interference.csi_rb_stats(path, "c6f9")
+    assert rbs == [0, 1] and used == 4
+    assert mean_db[0] == pytest.approx(40) and std_db[0] == pytest.approx(0)
+    assert mean_db[1] == pytest.approx(10 * math.log10((1e6 + 1e4) / 2)) and std_db[1] == pytest.approx(10)
+    assert interference.csi_rb_stats(path, "0x224b")[3] == 1
+    assert interference.csi_rb_stats(path)[3] == 5  # all UEs
+
+
+def test_traffic_rnti():
+    means = {
+        "ran_ul_goodput_mbps:oai_gnb_mac_ul_goodput_mbps{rnti=224b}": {"uplink_baseline": 0.21},
+        "ran_ul_goodput_mbps:oai_gnb_mac_ul_goodput_mbps{rnti=c6f9}": {"uplink_baseline": 129.69},
+        "ran_dl_goodput_mbps:oai_gnb_mac_dl_goodput_mbps{rnti=c6f9}": {"downlink_baseline": 203.65},
+        "ran_dl_goodput_mbps:oai_gnb_mac_dl_goodput_mbps{rnti=5ba7}": {"downlink_baseline": 0.0},
+        "ran_cqi:oai_gnb_mac_cqi{rnti=9ca3}": {"uplink_baseline": 500.0},
+    }
+    assert interference.traffic_rnti(means, "uplink") == "c6f9"
+    assert interference.traffic_rnti(means, "downlink") == "c6f9"
+    assert (
+        interference.traffic_rnti({"slice_throughput_bps:slice_throughput": {"uplink_baseline": 1.0}}, "uplink") is None
+    )

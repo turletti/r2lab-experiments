@@ -584,6 +584,65 @@ def csi_rb_power(path: str | Path) -> tuple[list[int], list[float], int]:
     return rbs, [10 * math.log10(totals[i][0] / totals[i][1] + 1e-20) for i in rbs], rows
 
 
+def traffic_rnti(means: dict[str, dict[str, float]], direction: str) -> str | None:
+    """
+    RNTI (hexadecimal, without 0x) of the UE with the highest MAC goodput in the ``<direction>_baseline`` section,
+    from ``prometheus_section_means``: the iperf UE, among the UEs of the room attached without traffic. None when
+    no series has a per-RNTI goodput (OCUDU queries).
+    """
+    word = "ul_goodput" if direction == "uplink" else "dl_goodput"
+    best = None
+    for series, per_section in means.items():
+        value = per_section.get(f"{direction}_baseline")
+        if word in series and "rnti=" in series and value is not None and (best is None or value > best[0]):
+            best = (value, series.split("rnti=", 1)[1].split(",", 1)[0].rstrip("}"))
+    return best[1] if best else None
+
+
+def csi_rb_stats(path: str | Path, rnti: str | None = None) -> tuple[list[int], list[float], list[float], int]:
+    """
+    Per RB of a CSI v3.1 file (``csi_per_rb.csv`` or its ``.gz`` cut), over the rows of one UE (``rnti``, hexadecimal
+    with or without 0x) or of all UEs: mean power ``real² + imag²`` in dB, and standard deviation in dB of the power
+    of the rows (SRS occasions, receive antennas, ports). Rows of zero power, such as an RB without SRS, are left out.
+    Returns (RBs, mean dB, standard deviation dB, rows used).
+    """
+    want = None if rnti is None else int(rnti, 16)
+    stats: dict[int, list[float]] = {}  # rb: [sum of powers, count, mean of dB, M2 of dB]
+    rows = 0
+    columns = None
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt") as fp:
+        for line in fp:
+            if line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split(",")
+            if columns is None:  # column header
+                names = [c.strip() for c in fields]
+                columns = (names.index("rnti"), names.index("rb"), names.index("real"), names.index("imag"))
+                continue
+            try:
+                if want is not None and int(fields[columns[0]], 16) != want:
+                    continue
+                index = int(fields[columns[1]])
+                power = float(fields[columns[2]]) ** 2 + float(fields[columns[3]]) ** 2
+            except (ValueError, IndexError):
+                continue
+            if power <= 0:
+                continue
+            stat = stats.setdefault(index, [0.0, 0, 0.0, 0.0])
+            db = 10 * math.log10(power)
+            stat[0] += power
+            stat[1] += 1
+            delta = db - stat[2]  # Welford: running mean and variance of the dB values
+            stat[2] += delta / stat[1]
+            stat[3] += delta * (db - stat[2])
+            rows += 1
+    rbs = sorted(stats)
+    mean_db = [10 * math.log10(stats[i][0] / stats[i][1]) for i in rbs]
+    std_db = [math.sqrt(stats[i][3] / stats[i][1]) for i in rbs]
+    return rbs, mean_db, std_db, rows
+
+
 def _grafana(url: str, path: str, body: dict | None = None, auth=("admin", "admin")) -> Any:
     """Call the Grafana HTTP API (basic authentication)."""
     token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
